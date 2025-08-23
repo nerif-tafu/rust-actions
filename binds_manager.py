@@ -77,10 +77,13 @@ class BindsManager:
             return {"items": {}}
     
     def _get_craftable_items(self) -> List[Dict]:
-        """Extract all user-craftable items from the database."""
+        """Extract all user-craftable items from the database that have ingredients."""
         craftable_items = []
         for item_id, item_data in self.item_database.get("items", {}).items():
-            if item_data.get("userCraftable", False):
+            # Check if item is user craftable AND has ingredients
+            if (item_data.get("userCraftable", False) and 
+                item_data.get("ingredients") and 
+                len(item_data.get("ingredients", [])) > 0):
                 craftable_items.append({
                     "id": item_id,
                     "numericId": item_data.get("numericId", int(item_id)),

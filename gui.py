@@ -1150,8 +1150,8 @@ class RustControllerGUI:
     def refresh_item_dropdowns(self):
         """Refresh the item dropdowns with data from the database"""
         try:
-            # Get items from the Steam database
-            response = requests.get("http://localhost:5000/steam/items", timeout=5)
+            # Get craftable items from the Steam database (only items with ingredients)
+            response = requests.get("http://localhost:5000/steam/craftable-items", timeout=5)
             if response.status_code == 200:
                 data = response.json()
                 if data.get('success') and data.get('items'):
@@ -1179,11 +1179,11 @@ class RustControllerGUI:
                         self.cancel_name_var.set(item_names[0])
                     
                     # Log success to server logs instead of showing popup
-                    self.log_message(f"Dropdown Refresh: Loaded {len(item_names)} items into dropdowns")
+                    self.log_message(f"Dropdown Refresh: Loaded {len(item_names)} craftable items into dropdowns")
                 else:
-                    messagebox.showwarning("Warning", "No items found in database")
+                    messagebox.showwarning("Warning", "No craftable items found in database")
             else:
-                messagebox.showerror("Error", f"Failed to load items: HTTP {response.status_code}")
+                messagebox.showerror("Error", f"Failed to load craftable items: HTTP {response.status_code}")
                 
         except requests.exceptions.ConnectionError:
             messagebox.showerror("Connection Error", "Could not connect to the server. Make sure it's running.")

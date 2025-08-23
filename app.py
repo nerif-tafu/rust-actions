@@ -2430,6 +2430,28 @@ def get_steam_items():
         logger.error(f"Error in get_steam_items: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/steam/craftable-items', methods=['GET'])
+def get_craftable_items():
+    """Get only craftable items with ingredients from Steam database"""
+    try:
+        # Use the binds_manager to get properly filtered craftable items
+        craftable_items = {}
+        for item in rust_controller.keyboard_manager.binds_manager.craftable_items:
+            item_id = item['id']
+            # Get the full item data from steam_manager
+            full_item = steam_manager.get_item_by_id(item_id)
+            if full_item:
+                craftable_items[item_id] = full_item
+        
+        return jsonify({
+            "success": True,
+            "items": craftable_items,
+            "count": len(craftable_items)
+        })
+    except Exception as e:
+        logger.error(f"Error in get_craftable_items: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/steam/items/<item_id>', methods=['GET'])
 def get_steam_item(item_id):
     """Get item by ID from Steam database"""

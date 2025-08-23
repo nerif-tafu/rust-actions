@@ -121,6 +121,7 @@ The API will be available at `http://localhost:5000`
 - **POST** `/steam/update-database` - Update item database using Steam
 - **POST** `/steam/reset-database` - Reset the item database
 - **GET** `/steam/items` - Get all items from Steam database
+- **GET** `/steam/craftable-items` - Get only craftable items with ingredients from Steam database
 - **GET** `/steam/items/<item_id>` - Get item by ID from Steam database
 - **GET** `/steam/stats` - Get Steam database statistics
 - **GET** `/steam/test-installation` - Test SteamCMD installation
@@ -491,6 +492,11 @@ curl -X GET http://localhost:5000/steam/stats
 **Get All Steam Items:**
 ```bash
 curl -X GET http://localhost:5000/steam/items
+```
+
+**Get Craftable Items Only (with ingredients):**
+```bash
+curl -X GET http://localhost:5000/steam/craftable-items
 ```
 
 **Get Steam Item by ID:**
