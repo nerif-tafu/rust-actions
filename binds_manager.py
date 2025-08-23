@@ -21,7 +21,7 @@ class BindsManager:
             'keypaddivide', 'keypadmultiply', 'keypadminus', 'keypadplus', 'keypadperiod',
             'keypad1', 'keypad2', 'keypad3', 'keypad4', 'keypad5', 'keypad6', 'keypad7', 'keypad8', 'keypad9', 'keypad0',
             'f13', 'f14', 'f15',
-            'slash', 'period', 'comma', 'backquote', 'semicolon', 'leftbracket', 'rightbracket'
+            'slash', 'period', 'comma', 'leftbracket', 'rightbracket'
         ]
         
         # Reserved ranges
@@ -42,6 +42,17 @@ class BindsManager:
         # Track used binds
         self.used_binds = set()
         self.bind_mapping = {}  # Maps item_id -> (craft_bind_index, cancel_bind_index)
+        
+        # Dynamic chat/connection bind management
+        self.dynamic_binds = {}  # Maps string -> bind_index
+        self.next_dynamic_bind = self.CHAT_BINDS_START
+        self.dynamic_bind_order = []  # Track order for FIFO replacement
+        
+        # Load dynamic binds from keys.cfg (with migration from JSON if needed)
+        self._load_dynamic_binds_from_keys_cfg()
+        
+        # One-time migration from old JSON file to keys.cfg
+        self._migrate_dynamic_binds_from_json()
         
         # File permission management
         self._file_permissions_backup = None
@@ -151,6 +162,7 @@ class BindsManager:
         binds = []
         api_commands = [
             ("kill", "kill"),
+            ("respawn", "respawn"),
             ("autorun", "forward;sprint"),
             ("autorun_jump", "forward;sprint;jump"),
             ("crouch_attack", "attack;duck"),
@@ -170,6 +182,44 @@ class BindsManager:
             ("audio_master_100", "audio.master 1"),
             ("hud_off", "graphics.hud 0"),
             ("hud_on", "graphics.hud 1"),
+            ("gesture_wave", "gesture wave"),
+            ("gesture_victory", "gesture victory"),
+            ("gesture_shrug", "gesture shrug"),
+            ("gesture_thumbsup", "gesture thumbsup"),
+            ("gesture_hurry", "gesture hurry"),
+            ("gesture_ok", "gesture ok"),
+            ("gesture_thumbsdown", "gesture thumbsdown"),
+            ("gesture_clap", "gesture clap"),
+            ("gesture_point", "gesture point"),
+            ("gesture_friendly", "gesture friendly"),
+            ("gesture_cabbagepatch", "gesture cabbagepatch"),
+            ("gesture_twist", "gesture twist"),
+            ("gesture_raisetheroof", "gesture raisetheroof"),
+            ("gesture_beatchest", "gesture beatchest"),
+            ("gesture_throatcut", "gesture throatcut"),
+            ("gesture_fingergun", "gesture fingergun"),
+            ("gesture_shush", "gesture shush"),
+            ("gesture_shush_vocal", "gesture shush_vocal"),
+            ("gesture_watchingyou", "gesture watchingyou"),
+            ("gesture_loser", "gesture loser"),
+            ("gesture_nono", "gesture nono"),
+            ("gesture_knucklescrack", "gesture knucklescrack"),
+            ("gesture_rps", "gesture rps"),
+            ("noclip_true", "noclip true"),
+            ("noclip_false", "noclip false"),
+            ("global_god_true", "global.god true"),
+            ("global_god_false", "global.god false"),
+            ("env_time_0", "env.time 0"),
+            ("env_time_4", "env.time 4"),
+            ("env_time_8", "env.time 8"),
+            ("env_time_12", "env.time 12"),
+            ("env_time_16", "env.time 16"),
+            ("env_time_20", "env.time 20"),
+            ("env_time_24", "env.time 24"),
+            ("teleport2marker", "teleport2marker"),
+            ("combatlog", "combatlog"),
+            ("console_clear", "console.clear"),
+            ("consoletoggle", "consoletoggle"),
         ]
         
         print(f"Generating API binds...")
@@ -206,46 +256,20 @@ class BindsManager:
         return binds
     
     def generate_chat_binds(self) -> List[str]:
-        """Generate binds for chat and connection commands (placeholder)."""
+        """Generate empty reserved binds for chat and connection commands."""
         binds = []
-        print(f"Generating chat/connection binds (placeholder)...")
+        print(f"Generating empty reserved binds for chat/connection commands...")
         
-        # These will be populated dynamically when needed
-        chat_commands = [
-            ("chat_say", "chat.say"),
-            ("chat_teamsay", "chat.teamsay"),
-            ("client_connect", "client.connect"),
-            ("respawn", "respawn"),
-        ]
-        
-        for i, (name, command) in enumerate(chat_commands):
-            bind_index = self.CHAT_BINDS_START + i
-            if bind_index >= len(self.key_combinations):
-                print(f"Warning: Not enough key combinations for chat binds. Stopping at {name}")
-                break
-                
-            key_combo = self.key_combinations[bind_index]
-            bind = self._format_bind_command(key_combo, f"{command} <placeholder>")
-            binds.append(f"# Chat/Connection: {name} (placeholder) - reserved bind no.{bind_index}")
-            binds.append(bind)
-            binds.append("")
-            
-            self.used_binds.add(bind_index)
-        
-        # Fill remaining chat slots with empty binds
-        chat_slots_used = len(chat_commands)
-        chat_slots_total = self.CHAT_BINDS_END - self.CHAT_BINDS_START + 1
-        
-        if chat_slots_used < chat_slots_total:
-            binds.append(f"# Empty reserved binds for future chat/connection commands")
-            for bind_index in range(self.CHAT_BINDS_START + chat_slots_used, self.CHAT_BINDS_END + 1):
-                if bind_index < len(self.key_combinations):
-                    key_combo = self.key_combinations[bind_index]
-                    empty_bind = self._format_bind_command(key_combo, '""')
-                    binds.append(f"# Reserved bind no.{bind_index}")
-                    binds.append(empty_bind)
-                    self.used_binds.add(bind_index)
-            binds.append("")
+        # Generate empty reserved binds for all chat/connection slots
+        binds.append(f"# Empty reserved binds for dynamic chat/connection commands")
+        for bind_index in range(self.CHAT_BINDS_START, self.CHAT_BINDS_END + 1):
+            if bind_index < len(self.key_combinations):
+                key_combo = self.key_combinations[bind_index]
+                empty_bind = self._format_bind_command(key_combo, '""')
+                binds.append(f"# Reserved bind no.{bind_index}")
+                binds.append(empty_bind)
+                self.used_binds.add(bind_index)
+        binds.append("")
         
         return binds
     
@@ -258,6 +282,14 @@ class BindsManager:
         if not os.path.exists(self.keys_cfg_path):
             print(f"Warning: keys.cfg not found at {self.keys_cfg_path}")
             return user_binds, rust_actions_binds, other_binds
+        
+        # Temporarily make file readable if it's read-only
+        was_readonly = self.is_file_readonly()
+        if was_readonly:
+            logger.info("File is read-only, temporarily making it readable for reading...")
+            if not self.set_file_writable():
+                logger.error("Failed to make file writable for reading")
+                return user_binds, rust_actions_binds, other_binds
         
         try:
             with open(self.keys_cfg_path, 'r', encoding='utf-8') as f:
@@ -298,12 +330,20 @@ class BindsManager:
         except Exception as e:
             print(f"Error reading keys.cfg: {e}")
             return user_binds, rust_actions_binds, other_binds
+        finally:
+            # Restore read-only state if it was read-only before
+            if was_readonly:
+                logger.info("Restoring read-only state after reading...")
+                self.set_file_readonly()
     
     def write_keys_cfg_with_sections(self) -> bool:
         """Write keys.cfg with proper sections."""
         try:
+            logger.info("Starting write_keys_cfg_with_sections()...")
+            
             # Read existing sections
             user_binds, _, other_binds = self.read_existing_keys_cfg()
+            logger.info(f"Read existing sections: {len(user_binds)} user binds, {len(other_binds)} other binds")
             
             # If no existing file or no other_binds, create default Rust binds
             if not other_binds:
@@ -392,7 +432,10 @@ class BindsManager:
             
             # Add chat/connection binds
             rust_actions_binds.append("# === CHAT/CONNECTION BINDS ===")
-            rust_actions_binds.extend(self.generate_chat_binds())
+            logger.info(f"Generating dynamic chat binds, current dynamic_binds count: {len(self.dynamic_binds)}")
+            dynamic_chat_binds = self.generate_dynamic_chat_binds()
+            logger.info(f"Generated {len(dynamic_chat_binds)} dynamic chat bind lines")
+            rust_actions_binds.extend(dynamic_chat_binds)
             rust_actions_binds.append("")
             
             # Combine all sections
@@ -536,27 +579,383 @@ class BindsManager:
     def write_keys_cfg_with_sections_protected(self) -> bool:
         """Write keys.cfg with sections, handling file permissions automatically."""
         try:
-            print("Preparing to write keys.cfg...")
+            logger.info("Preparing to write keys.cfg...")
             
             # Set file to writable
             if not self.set_file_writable():
-                print("Failed to set file to writable")
+                logger.error("Failed to set file to writable")
                 return False
             
             # Write the file
+            logger.info("Calling write_keys_cfg_with_sections()...")
             success = self.write_keys_cfg_with_sections()
+            logger.info(f"write_keys_cfg_with_sections() returned: {success}")
             
             if success:
                 # Set file back to read-only to protect from game modifications
-                print("Setting file to read-only to protect from game modifications...")
+                logger.info("Setting file to read-only to protect from game modifications...")
                 self.set_file_readonly()
+            else:
+                logger.error("write_keys_cfg_with_sections() failed")
             
             return success
             
         except Exception as e:
-            print(f"Error in protected write operation: {e}")
+            logger.error(f"Error in protected write operation: {e}")
             # Try to restore permissions on error
             self._restore_file_permissions()
+            return False
+    
+    def get_or_create_dynamic_bind(self, command_type: str, string_value: str) -> int:
+        """
+        Get or create a dynamic bind for a chat/connection command.
+        
+        Args:
+            command_type: Type of command ('chat_say', 'chat_teamsay', 'client_connect', 'respawn')
+            string_value: The actual string value (message, IP, spawn_id, etc.)
+        
+        Returns:
+            bind_index: The bind index for this string
+        """
+        # Create a unique key for this command
+        bind_key = f"{command_type}:{string_value}"
+        
+        # Check if we already have a bind for this string
+        if bind_key in self.dynamic_binds:
+            bind_index = self.dynamic_binds[bind_key]
+            # Move to end of order (most recently used)
+            if bind_index in self.dynamic_bind_order:
+                self.dynamic_bind_order.remove(bind_index)
+            self.dynamic_bind_order.append(bind_index)
+            return bind_index
+        
+        # We need to create a new bind
+        # Check if we need to overwrite an old bind
+        if len(self.dynamic_binds) >= (self.CHAT_BINDS_END - self.CHAT_BINDS_START + 1):
+            # We're at capacity, need to overwrite the oldest bind
+            oldest_bind_index = self.dynamic_bind_order.pop(0)  # Remove oldest
+            
+            # Find and remove the old bind_key from dynamic_binds
+            old_bind_key = None
+            for key, bind_index in self.dynamic_binds.items():
+                if bind_index == oldest_bind_index:
+                    old_bind_key = key
+                    break
+            
+            if old_bind_key:
+                del self.dynamic_binds[old_bind_key]
+                logger.info(f"Overwriting old bind {old_bind_index} for '{old_bind_key}'")
+            
+            # Use the freed bind index
+            bind_index = oldest_bind_index
+        else:
+            # Use the next available bind index
+            bind_index = self.next_dynamic_bind
+            self.next_dynamic_bind += 1
+            
+            # If we've reached the end, wrap back to start
+            if self.next_dynamic_bind > self.CHAT_BINDS_END:
+                self.next_dynamic_bind = self.CHAT_BINDS_START
+        
+        # Store the new bind
+        self.dynamic_binds[bind_key] = bind_index
+        self.dynamic_bind_order.append(bind_index)
+        self.used_binds.add(bind_index)
+        
+        logger.info(f"Created new dynamic bind {bind_index} for '{command_type}:{string_value}'")
+        
+        return bind_index
+    
+    def generate_dynamic_chat_binds(self) -> List[str]:
+        """Generate the actual dynamic chat/connection binds based on stored strings."""
+        binds = []
+        
+        logger.info(f"generate_dynamic_chat_binds() called, dynamic_binds count: {len(self.dynamic_binds)}")
+        
+        if not self.dynamic_binds:
+            # No dynamic binds yet, return placeholder binds
+            logger.info("No dynamic binds found, returning placeholder binds")
+            return self.generate_chat_binds()
+        
+        # Use the existing key combinations list for unique combinations
+        # Each dynamic bind will get a unique key combination from the available pool
+        
+        # Define the command templates
+        command_templates = {
+            "chat_say": "chat.say",
+            "chat_teamsay": "chat.teamsay",
+            "client_connect": "disconnect;client.connect",
+            "respawn_sleepingbag": "respawn_sleepingbag"
+        }
+        
+        # Generate binds for each stored dynamic bind
+        logger.info(f"Generating binds for {len(self.dynamic_binds)} dynamic binds:")
+        for bind_key, bind_index in self.dynamic_binds.items():
+            command_type, string_value = bind_key.split(":", 1)
+            logger.info(f"  Processing: {bind_key} -> bind {bind_index}")
+            
+            if command_type in command_templates:
+                # Use the unique key combination for this bind index
+                if bind_index < len(self.key_combinations):
+                    key_combo = self.key_combinations[bind_index]
+                else:
+                    # Fallback if we somehow exceed the available combinations
+                    key_combo = "keypaddivide+keypadplus+keypad4+keypad7+period"
+                
+                # Wrap string values in quotes for chat commands
+                if command_type in ["chat_say", "chat_teamsay"]:
+                    command = f"{command_templates[command_type]} \"{string_value}\""
+                else:
+                    command = f"{command_templates[command_type]} {string_value}"
+                bind = self._format_bind_command(key_combo, command)
+                
+                binds.append(f"# Dynamic: {command_type} - '{string_value}' - bind no.{bind_index}")
+                binds.append(bind)
+                binds.append("")
+                logger.info(f"    Generated: {bind}")
+            else:
+                logger.warning(f"    Unknown command type: {command_type}")
+        
+        # Fill remaining slots with empty binds (but don't add them to used_binds)
+        dynamic_slots_used = len(self.dynamic_binds)
+        dynamic_slots_total = self.CHAT_BINDS_END - self.CHAT_BINDS_START + 1
+        
+        if dynamic_slots_used < dynamic_slots_total:
+            binds.append(f"# Empty reserved binds for future dynamic chat/connection commands")
+            for bind_index in range(self.CHAT_BINDS_START, self.CHAT_BINDS_END + 1):
+                if bind_index not in self.dynamic_binds.values():
+                    # Use the actual key combination for this bind index
+                    if bind_index < len(self.key_combinations):
+                        key_combo = self.key_combinations[bind_index]
+                    else:
+                        # Fallback to a placeholder if we run out of combinations
+                        key_combo = "keypaddivide+keypadplus+keypad4+keypad7+period"
+                    empty_bind = self._format_bind_command(key_combo, '""')
+                    binds.append(f"# Reserved bind no.{bind_index}")
+                    binds.append(empty_bind)
+                    # Don't add empty binds to used_binds - they should remain available
+            binds.append("")
+        
+        return binds
+    
+    def reload_dynamic_binds(self) -> bool:
+        """Reload the keys.cfg file in Rust to apply dynamic bind changes."""
+        try:
+            # This will be called by the keyboard manager to reload binds
+            # The actual reload is done by pressing F1, typing 'exec keys.cfg', and pressing enter
+            logger.info("Dynamic binds updated, reload required in Rust")
+            return True
+        except Exception as e:
+            logger.error(f"Error reloading dynamic binds: {e}")
+            return False
+    
+    def get_dynamic_bind_stats(self) -> Dict:
+        """Get statistics about dynamic binds."""
+        return {
+            "total_dynamic_binds": len(self.dynamic_binds),
+            "next_bind_index": self.next_dynamic_bind,
+            "bind_order_length": len(self.dynamic_bind_order),
+            "available_slots": (self.CHAT_BINDS_END - self.CHAT_BINDS_START + 1) - len(self.dynamic_binds)
+        }
+    
+    def _load_dynamic_binds_from_keys_cfg(self) -> bool:
+        """Load dynamic binds from the keys.cfg file."""
+        try:
+            if not os.path.exists(self.keys_cfg_path):
+                logger.info("No keys.cfg file found, starting with empty dynamic binds")
+                return True
+            
+            # Temporarily make file readable if it's read-only
+            was_readonly = self.is_file_readonly()
+            if was_readonly:
+                logger.info("File is read-only, temporarily making it readable...")
+                if not self.set_file_writable():
+                    logger.error("Failed to make file writable for reading")
+                    return False
+            
+            try:
+                # Read the keys.cfg file
+                with open(self.keys_cfg_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            finally:
+                # Restore read-only state if it was read-only before
+                if was_readonly:
+                    logger.info("Restoring read-only state...")
+                    self.set_file_readonly()
+            
+            # Parse dynamic binds from the file
+            in_rust_actions_section = False
+            in_chat_section = False
+            
+            for line in lines:
+                line = line.strip()
+                
+                # Check for section markers
+                if line == "#RUST-ACTIONS-START":
+                    in_rust_actions_section = True
+                    continue
+                elif line == "#RUST-ACTIONS-END":
+                    in_rust_actions_section = False
+                    continue
+                elif line == "# === CHAT/CONNECTION BINDS ===":
+                    in_chat_section = True
+                    continue
+                
+                # Only process lines in the chat section
+                if not in_rust_actions_section or not in_chat_section:
+                    continue
+                
+                # Look for dynamic bind comments
+                if line.startswith("# Dynamic:"):
+                    # Parse the dynamic bind info
+                    # Format: # Dynamic: command_type - 'string_value' - bind no.bind_index
+                    try:
+                        # Extract command_type and string_value
+                        parts = line.split(" - '")
+                        if len(parts) >= 2:
+                            command_part = parts[0].replace("# Dynamic: ", "")
+                            string_part = parts[1].split("' - bind no.")[0]
+                            bind_index_part = line.split("bind no.")[1]
+                            
+                            command_type = command_part.strip()
+                            string_value = string_part.strip()
+                            bind_index = int(bind_index_part)
+                            
+                            # Store the dynamic bind
+                            bind_key = f"{command_type}:{string_value}"
+                            self.dynamic_binds[bind_key] = bind_index
+                            self.dynamic_bind_order.append(bind_index)
+                            self.used_binds.add(bind_index)
+                            
+                            # Update next_dynamic_bind
+                            if bind_index >= self.next_dynamic_bind:
+                                self.next_dynamic_bind = bind_index + 1
+                                
+                    except Exception as e:
+                        logger.warning(f"Failed to parse dynamic bind line: {line} - {e}")
+                        continue
+            
+            # Ensure next_dynamic_bind is within valid range
+            if self.next_dynamic_bind < self.CHAT_BINDS_START or self.next_dynamic_bind > self.CHAT_BINDS_END:
+                self.next_dynamic_bind = self.CHAT_BINDS_START
+            
+            logger.info(f"Loaded {len(self.dynamic_binds)} dynamic binds from keys.cfg")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error loading dynamic binds from keys.cfg: {e}")
+            # Reset to defaults on error
+            self.dynamic_binds = {}
+            self.next_dynamic_bind = self.CHAT_BINDS_START
+            self.dynamic_bind_order = []
+            return False
+    
+    def _migrate_dynamic_binds_from_json(self) -> bool:
+        """One-time migration from old JSON file to keys.cfg format."""
+        try:
+            json_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "dynamic_binds.json")
+            
+            # Check if JSON file exists and we don't have dynamic binds loaded
+            if os.path.exists(json_file_path) and not self.dynamic_binds:
+                logger.info("Found old dynamic_binds.json, migrating to keys.cfg format...")
+                
+                # Load data from JSON file
+                with open(json_file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                # Restore the data
+                self.dynamic_binds = data.get("dynamic_binds", {})
+                self.next_dynamic_bind = data.get("next_dynamic_bind", self.CHAT_BINDS_START)
+                self.dynamic_bind_order = data.get("dynamic_bind_order", [])
+                
+                # Ensure next_dynamic_bind is within valid range
+                if self.next_dynamic_bind < self.CHAT_BINDS_START or self.next_dynamic_bind > self.CHAT_BINDS_END:
+                    self.next_dynamic_bind = self.CHAT_BINDS_START
+                
+                # Add all dynamic bind indices to used_binds
+                for bind_index in self.dynamic_binds.values():
+                    self.used_binds.add(bind_index)
+                
+                logger.info(f"Migrated {len(self.dynamic_binds)} dynamic binds from JSON to memory")
+                
+                # Immediately write to keys.cfg to persist the migration
+                if self.write_keys_cfg_with_sections_protected():
+                    logger.info("Successfully migrated dynamic binds to keys.cfg")
+                    
+                    # Remove the old JSON file after successful migration
+                    try:
+                        os.remove(json_file_path)
+                        logger.info("Removed old dynamic_binds.json file after successful migration")
+                    except Exception as e:
+                        logger.warning(f"Could not remove old JSON file: {e}")
+                    
+                    return True
+                else:
+                    logger.error("Failed to write migrated dynamic binds to keys.cfg")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error migrating dynamic binds from JSON: {e}")
+            return False
+    
+    def reload_dynamic_binds_from_file(self) -> bool:
+        """Reload dynamic binds from keys.cfg file."""
+        try:
+            logger.info("Reloading dynamic binds from keys.cfg file...")
+            
+            # Clear current dynamic bind state
+            self.dynamic_binds.clear()
+            self.dynamic_bind_order.clear()
+            self.next_dynamic_bind = self.CHAT_BINDS_START
+            
+            # Remove dynamic bind indices from used_binds
+            for bind_index in range(self.CHAT_BINDS_START, self.CHAT_BINDS_END + 1):
+                if bind_index in self.used_binds:
+                    self.used_binds.remove(bind_index)
+            
+            # Load dynamic binds from keys.cfg
+            success = self._load_dynamic_binds_from_keys_cfg()
+            
+            if success:
+                logger.info(f"Successfully reloaded {len(self.dynamic_binds)} dynamic binds from keys.cfg")
+            else:
+                logger.error("Failed to reload dynamic binds from keys.cfg")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error reloading dynamic binds from file: {e}")
+            return False
+    
+    def regenerate_with_cleared_dynamic_binds(self) -> bool:
+        """Regenerate the keys.cfg file with all dynamic binds cleared."""
+        try:
+            logger.info("Regenerating keys.cfg with cleared dynamic binds...")
+            
+            # Clear all dynamic chat/connection binds from memory
+            self.dynamic_binds.clear()
+            self.dynamic_bind_order.clear()
+            self.next_dynamic_bind = self.CHAT_BINDS_START
+            
+            # Remove dynamic bind indices from used_binds
+            for bind_index in range(self.CHAT_BINDS_START, self.CHAT_BINDS_END + 1):
+                if bind_index in self.used_binds:
+                    self.used_binds.remove(bind_index)
+            
+            # Regenerate the file with cleared dynamic binds
+            success = self.write_keys_cfg_with_sections_protected()
+            
+            if success:
+                logger.info("Successfully regenerated keys.cfg with cleared dynamic binds")
+            else:
+                logger.error("Failed to regenerate keys.cfg with cleared dynamic binds")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error regenerating with cleared dynamic binds: {e}")
             return False
 
 

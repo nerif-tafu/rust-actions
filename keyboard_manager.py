@@ -8,6 +8,15 @@ from pynput import keyboard
 from pynput.keyboard import Key, KeyCode
 from binds_manager import BindsManager
 
+# Add win32gui import for window focus checking
+try:
+    import win32gui
+    import win32process
+    WIN32_AVAILABLE = True
+except ImportError:
+    WIN32_AVAILABLE = False
+    print("Warning: win32gui not available. Focus checking will be disabled.")
+
 # Setup logger
 logger = logging.getLogger(__name__)
 
@@ -65,7 +74,7 @@ class KeyboardSimulator:
             'left': Key.left, 'left_arrow': Key.left, 'leftarrow': Key.left,
             'right': Key.right, 'right_arrow': Key.right, 'rightarrow': Key.right,
             
-            # Numpad keys (using extended key codes to ensure they're recognized as keypad keys)
+            # Numpad keys (using virtual key codes)
             'keypad0': KeyCode.from_vk(96), 'keypad1': KeyCode.from_vk(97), 'keypad2': KeyCode.from_vk(98),
             'keypad3': KeyCode.from_vk(99), 'keypad4': KeyCode.from_vk(100), 'keypad5': KeyCode.from_vk(101),
             'keypad6': KeyCode.from_vk(102), 'keypad7': KeyCode.from_vk(103), 'keypad8': KeyCode.from_vk(104),
@@ -74,18 +83,18 @@ class KeyboardSimulator:
             'keypadmultiply': KeyCode.from_vk(106), 'keypaddivide': KeyCode.from_vk(111),
             
             # Punctuation and symbols
-            'comma': ',', ',': ',',
-            'period': '.', '.': '.',
-            'semicolon': ';', ';': ';',
+            'comma': KeyCode.from_vk(188), ',': KeyCode.from_vk(188),
+            'period': KeyCode.from_vk(190), '.': KeyCode.from_vk(190),
+            'semicolon': KeyCode.from_vk(186), ';': KeyCode.from_vk(186),  # Use virtual key code for semicolon
             'colon': ':', ':': ':',
-            'slash': '/', '/': '/',
+            'slash': KeyCode.from_vk(191), '/': KeyCode.from_vk(191),
             'backslash': '\\', '\\': '\\',
             'minus': '-', '-': '-',
             'equals': '=', '=': '=',
             'plus': '+', '+': '+',
             'underscore': '_', '_': '_',
-            'bracket_left': '[', '[': '[', 'leftbracket': '[',
-            'bracket_right': ']', ']': ']', 'rightbracket': ']',
+            'bracket_left': KeyCode.from_vk(219), '[': KeyCode.from_vk(219), 'leftbracket': KeyCode.from_vk(219),
+            'bracket_right': KeyCode.from_vk(221), ']': KeyCode.from_vk(221), 'rightbracket': KeyCode.from_vk(221),
             'brace_left': '{', '{': '{',
             'brace_right': '}', '}': '}',
             'pipe': '|', '|': '|',
@@ -111,8 +120,56 @@ class KeyboardSimulator:
             return self.available_keys[key]
         return None
     
+    def is_rust_focused(self):
+        """Check if RustClient.exe is the currently focused window"""
+        if not WIN32_AVAILABLE:
+            logger.warning("Focus checking not available - win32gui not installed")
+            return True  # Allow execution if focus checking is not available
+        
+        try:
+            # Get the handle of the currently focused window
+            focused_hwnd = win32gui.GetForegroundWindow()
+            if focused_hwnd == 0:
+                logger.warning("No focused window found")
+                return False
+            
+            # Get the process ID of the focused window
+            _, focused_pid = win32process.GetWindowThreadProcessId(focused_hwnd)
+            
+            # Get the window title
+            window_title = win32gui.GetWindowText(focused_hwnd)
+            
+            # Check if the window title contains "Rust"
+            if "Rust" in window_title:
+                logger.debug(f"Rust window focused: {window_title}")
+                return True
+            
+            # Additional check: try to get the process name
+            try:
+                import psutil
+                process = psutil.Process(focused_pid)
+                process_name = process.name()
+                if process_name.lower() == "rustclient.exe":
+                    logger.debug(f"RustClient.exe process focused: {process_name}")
+                    return True
+            except (ImportError, psutil.NoSuchProcess, psutil.AccessDenied):
+                # psutil not available or process access denied, fall back to window title only
+                pass
+            
+            logger.debug(f"Non-Rust window focused: {window_title} (PID: {focused_pid})")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking window focus: {e}")
+            return True  # Allow execution if focus check fails
+    
     def single(self, key):
         """Simulate a single key press"""
+        # Check if Rust is focused before executing
+        if not self.is_rust_focused():
+            logger.warning(f"Skipping key press '{key}' - Rust is not focused")
+            return
+        
         normalized_key = self.normalize_key(key)
         if not normalized_key:
             raise ValueError(f"Invalid key: {key}")
@@ -144,6 +201,11 @@ class KeyboardSimulator:
     
     def combo(self, keys: List[str]):
         """Simulate a multi-key combination"""
+        # Check if Rust is focused before executing
+        if not self.is_rust_focused():
+            logger.warning(f"Skipping key combination '{'+'.join(keys)}' - Rust is not focused")
+            return
+        
         import time
         combo_start = time.time()
         
@@ -182,11 +244,16 @@ class KeyboardSimulator:
             
         except Exception as e:
             total_time = time.time() - combo_start
-            print(f"Combo failed after {total_time:.4f}s: {str(e)}")
+            logger.error(f"[ERROR] Combo failed after {total_time:.4f}s: {str(e)}")
             raise Exception(f"Failed to send combination {'+'.join(keys)}: {str(e)}")
     
     def down(self, key):
         """Simulate key down"""
+        # Check if Rust is focused before executing
+        if not self.is_rust_focused():
+            logger.warning(f"Skipping key down '{key}' - Rust is not focused")
+            return
+        
         normalized_key = self.normalize_key(key)
         if not normalized_key:
             raise ValueError(f"Invalid key: {key}")
@@ -198,6 +265,11 @@ class KeyboardSimulator:
     
     def up(self, key):
         """Simulate key up"""
+        # Check if Rust is focused before executing
+        if not self.is_rust_focused():
+            logger.warning(f"Skipping key up '{key}' - Rust is not focused")
+            return
+        
         normalized_key = self.normalize_key(key)
         if not normalized_key:
             raise ValueError(f"Invalid key: {key}")
@@ -209,6 +281,11 @@ class KeyboardSimulator:
     
     def type_string(self, text):
         """Type a string"""
+        # Check if Rust is focused before executing
+        if not self.is_rust_focused():
+            logger.warning(f"Skipping string typing '{text}' - Rust is not focused")
+            return
+        
         if not text or not isinstance(text, str):
             raise ValueError("Text parameter must be a non-empty string")
         
@@ -237,6 +314,16 @@ class KeyboardManager:
         # Thread lock for thread-safe operations
         self._lock = threading.Lock()
         
+        # Anti-AFK feature
+        self.anti_afk_enabled = False
+        self.anti_afk_thread = None
+        self.anti_afk_stop_event = threading.Event()
+        
+        # Continuous stack inventory feature
+        self.continuous_stack_enabled = False
+        self.continuous_stack_thread = None
+        self.continuous_stack_stop_event = threading.Event()
+        
         # Load key combinations into cache
         self._load_key_combinations()
         logger.info("=== KeyboardManager Initialization Complete ===")
@@ -245,8 +332,38 @@ class KeyboardManager:
         """Load all key combinations into cache for faster lookup"""
         logger = logging.getLogger(__name__)
         logger.info("Loading key combinations into cache...")
+        
+        # Clear the cache first
+        self._key_combo_cache.clear()
+        
+        # Populate cache from binds_manager's key_combinations for regular binds
         for i, combo in enumerate(self.binds_manager.key_combinations):
             self._key_combo_cache[i] = combo.split('+')
+        
+        # Now populate cache for dynamic binds from the binds_manager's data
+        # For dynamic binds, we need to use the correct key combinations based on command type
+        # Define the key combinations for each command type (fixed combinations as specified)
+        dynamic_key_combinations = {
+            "chat_say": "keypaddivide+keypadplus+keypad4+keypad7+period",
+            "chat_teamsay": "keypaddivide+keypadplus+keypad4+keypad7+leftbracket",
+            "client_connect": "keypaddivide+keypadplus+keypad4+keypad7+rightbracket",
+            "respawn": "keypaddivide+keypadplus+keypad4+keypad8+keypad9"
+        }
+        
+        # Populate cache for existing dynamic binds
+        for bind_key, bind_index in self.binds_manager.dynamic_binds.items():
+            command_type = bind_key.split(":", 1)[0]
+            if command_type in dynamic_key_combinations:
+                key_combo = dynamic_key_combinations[command_type]
+                self._key_combo_cache[bind_index] = key_combo.split('+')
+        
+        # For empty dynamic bind slots, use the static key combinations
+        for bind_index in range(self.binds_manager.CHAT_BINDS_START, self.binds_manager.CHAT_BINDS_END + 1):
+            if bind_index not in self.binds_manager.dynamic_binds.values():
+                if bind_index < len(self.binds_manager.key_combinations):
+                    key_combo = self.binds_manager.key_combinations[bind_index]
+                    self._key_combo_cache[bind_index] = key_combo.split('+')
+        
         logger.info(f"Cached {len(self._key_combo_cache)} key combinations")
         
         # Force regeneration of bind mapping to ensure integer keys
@@ -264,6 +381,22 @@ class KeyboardManager:
         logger.info("Regenerating keys.cfg with protected write...")
         self.binds_manager.write_keys_cfg_with_sections_protected()
     
+    def _refresh_dynamic_bind_cache(self):
+        """Refresh the cache for dynamic binds only"""
+        logger.info("Refreshing dynamic bind cache...")
+        
+        # Update cache for existing dynamic binds using unique key combinations
+        for bind_key, bind_index in self.binds_manager.dynamic_binds.items():
+            command_type = bind_key.split(":", 1)[0]
+            # Use the unique key combination for this bind index
+            if bind_index < len(self.binds_manager.key_combinations):
+                key_combo = self.binds_manager.key_combinations[bind_index]
+                self._key_combo_cache[bind_index] = key_combo.split('+')
+            else:
+                logger.warning(f"Bind index {bind_index} exceeds available key combinations")
+        
+        logger.info(f"Refreshed cache for {len(self.binds_manager.dynamic_binds)} dynamic binds")
+    
     def get_key_combo_for_bind(self, bind_index: int) -> Optional[List[str]]:
         """Get the key combination for a specific bind index"""
         return self._key_combo_cache.get(bind_index)
@@ -278,11 +411,10 @@ class KeyboardManager:
                 cache_time = time.time() - cache_start
                 
                 if not key_combo:
-                    print(f"Warning: No key combination found for bind index {bind_index}")
+                    logger.error(f"[ERROR] No key combination found for bind index {bind_index}")
                     return False
                 
                 combo_start = time.time()
-                print(f"Triggering bind {bind_index}: {'+'.join(key_combo)}")
                 self.keyboard_simulator.combo(key_combo)
                 combo_time = time.time() - combo_start
                 
@@ -293,7 +425,7 @@ class KeyboardManager:
                 return True
                 
             except Exception as e:
-                print(f"Error triggering bind {bind_index}: {e}")
+                logger.error(f"[ERROR] Error triggering bind {bind_index}: {e}")
                 return False
     
     def craft_item(self, item_id: int) -> bool:
@@ -425,25 +557,64 @@ class KeyboardManager:
         """Trigger an API command by name"""
         api_commands = {
             "kill": 3000,
-            "autorun": 3001,
-            "autorun_jump": 3002,
-            "crouch_attack": 3003,
-            "quit_game": 3004,
-            "disconnect": 3005,
-            "lookat_radius_20": 3006,
-            "lookat_radius_0": 3007,
-            "audio_voices_0": 3008,
-            "audio_voices_25": 3009,
-            "audio_voices_50": 3010,
-            "audio_voices_75": 3011,
-            "audio_voices_100": 3012,
-            "audio_master_0": 3013,
-            "audio_master_25": 3014,
-            "audio_master_50": 3015,
-            "audio_master_75": 3016,
-            "audio_master_100": 3017,
-            "hud_off": 3018,
-            "hud_on": 3019,
+            "respawn": 3001,
+            "autorun": 3002,
+            "autorun_jump": 3003,
+            "crouch_attack": 3004,
+            "quit_game": 3005,
+            "disconnect": 3006,
+            "lookat_radius_20": 3007,
+            "lookat_radius_0": 3008,
+            "audio_voices_0": 3009,
+            "audio_voices_25": 3010,
+            "audio_voices_50": 3011,
+            "audio_voices_75": 3012,
+            "audio_voices_100": 3013,
+            "audio_master_0": 3014,
+            "audio_master_25": 3015,
+            "audio_master_50": 3016,
+            "audio_master_75": 3017,
+            "audio_master_100": 3018,
+            "hud_off": 3019,
+            "hud_on": 3020,
+            "gesture_wave": 3021,
+            "gesture_victory": 3022,
+            "gesture_shrug": 3023,
+            "gesture_thumbsup": 3024,
+            "gesture_hurry": 3025,
+            "gesture_ok": 3026,
+            "gesture_thumbsdown": 3027,
+            "gesture_clap": 3028,
+            "gesture_point": 3029,
+            "gesture_friendly": 3030,
+            "gesture_cabbagepatch": 3031,
+            "gesture_twist": 3032,
+            "gesture_raisetheroof": 3033,
+            "gesture_beatchest": 3034,
+            "gesture_throatcut": 3035,
+            "gesture_fingergun": 3036,
+            "gesture_shush": 3037,
+            "gesture_shush_vocal": 3038,
+            "gesture_watchingyou": 3039,
+            "gesture_loser": 3040,
+            "gesture_nono": 3041,
+            "gesture_knucklescrack": 3042,
+            "gesture_rps": 3043,
+            "noclip_true": 3044,
+            "noclip_false": 3045,
+            "global_god_true": 3046,
+            "global_god_false": 3047,
+            "env_time_0": 3048,
+            "env_time_4": 3049,
+            "env_time_8": 3050,
+            "env_time_12": 3051,
+            "env_time_16": 3052,
+            "env_time_20": 3053,
+            "env_time_24": 3054,
+            "teleport2marker": 3055,
+            "combatlog": 3056,
+            "console_clear": 3057,
+            "consoletoggle": 3058,
         }
         
         bind_index = api_commands.get(command_name)
@@ -454,23 +625,44 @@ class KeyboardManager:
         return self.trigger_bind(bind_index)
     
     def trigger_chat_command(self, command_name: str, **kwargs) -> bool:
-        """Trigger a chat/connection command by name"""
-        # For now, these are placeholders - they'll need to be implemented
-        # when the actual chat commands are added to the binds
-        chat_commands = {
-            "chat_say": 4000,
-            "chat_teamsay": 4001,
-            "client_connect": 4002,
-            "respawn": 4003,
-        }
-        
-        bind_index = chat_commands.get(command_name)
-        if bind_index is None:
-            logger.warning(f"Unknown chat command: {command_name}")
+        """Trigger a chat/connection command by name with dynamic bind management"""
+        try:
+            # Get the string value from kwargs
+            string_value = kwargs.get('string_value', '')
+            if not string_value:
+                logger.warning(f"No string value provided for chat command: {command_name}")
+                return False
+            
+            # Get or create a dynamic bind for this string
+            bind_key = f"{command_name}:{string_value}"
+            was_new_bind = bind_key not in self.binds_manager.dynamic_binds
+            bind_index = self.binds_manager.get_or_create_dynamic_bind(command_name, string_value)
+            
+            # Check if we need to reload the binds (new bind was created)
+            if was_new_bind:
+                # Regenerate the keys.cfg file with the new dynamic bind
+                logger.info(f"Regenerating keys.cfg with new dynamic bind {bind_index}")
+                if not self.binds_manager.write_keys_cfg_with_sections_protected():
+                    logger.error("Failed to regenerate keys.cfg with dynamic bind")
+                    return False
+                
+                # Refresh the keyboard manager's cache to include the new bind
+                logger.info("Refreshing keyboard manager cache for new dynamic bind")
+                self._refresh_dynamic_bind_cache()
+                
+                # Reload the binds in Rust
+                logger.info("Reloading binds in Rust...")
+                if not self.reload_binds():
+                    logger.error("Failed to reload binds in Rust")
+                    return False
+            
+            # Trigger the bind
+            result = self.trigger_bind(bind_index)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error triggering chat command {command_name}: {e}")
             return False
-        
-        # For now, just trigger the bind (placeholders)
-        return self.trigger_bind(bind_index)
     
     def stack_inventory(self, iterations: int = 80) -> bool:
         """Stack inventory by triggering the stack inventory binds"""
@@ -519,14 +711,60 @@ class KeyboardManager:
     def stack_inventory_continuous(self, enable: bool) -> bool:
         """Enable or disable continuous stack inventory"""
         if enable:
-            print("Starting continuous stack inventory...")
-            # This would need to be implemented with a background thread
-            # For now, just return success
+            if self.continuous_stack_enabled:
+                logger.warning("Continuous stack inventory is already running")
+                return False
+            
+            logger.info("Starting continuous stack inventory...")
+            self.continuous_stack_enabled = True
+            self.continuous_stack_stop_event.clear()
+            self.continuous_stack_thread = threading.Thread(target=self._continuous_stack_inventory_loop, daemon=True)
+            self.continuous_stack_thread.start()
             return True
         else:
-            print("Stopping continuous stack inventory...")
-            # This would need to stop the background thread
+            if not self.continuous_stack_enabled:
+                logger.warning("Continuous stack inventory is not running")
+                return False
+            
+            logger.info("Stopping continuous stack inventory...")
+            self.continuous_stack_enabled = False
+            self.continuous_stack_stop_event.set()
+            if self.continuous_stack_thread and self.continuous_stack_thread.is_alive():
+                self.continuous_stack_thread.join(timeout=2.0)
             return True
+    
+    def _continuous_stack_inventory_loop(self):
+        """Background thread for continuous stack inventory operations"""
+        logger.info("Continuous stack inventory loop started")
+        
+        while self.continuous_stack_enabled and not self.continuous_stack_stop_event.is_set():
+            try:
+                # Stack inventory (80 iterations)
+                logger.info("Executing stack inventory (80 iterations)")
+                self.stack_inventory(iterations=80)
+                
+                # Wait 10 seconds
+                logger.info("Waiting 10 seconds before canceling...")
+                for i in range(10):
+                    if self.continuous_stack_stop_event.is_set():
+                        break
+                    time.sleep(1)
+                
+                if self.continuous_stack_stop_event.is_set():
+                    break
+                
+                # Cancel 1x of each stacking
+                logger.info("Canceling 1x of each stacking")
+                self.cancel_stack_inventory(iterations=1)
+                
+                # Wait a moment before next cycle
+                time.sleep(1)
+                
+            except Exception as e:
+                logger.error(f"Error in continuous stack inventory loop: {e}")
+                time.sleep(5)  # Wait before retrying
+        
+        logger.info("Continuous stack inventory loop stopped")
     
     def copy_json_to_clipboard(self, data: Any) -> bool:
         """Copy JSON data to clipboard"""
@@ -556,7 +794,7 @@ class KeyboardManager:
             return False
     
     def reload_binds(self) -> bool:
-        """Reload binds by pressing F1, typing 'exec keys.cfg', and pressing enter"""
+        """Reload binds by pressing F1, typing 'exec keys.cfg', pressing enter, then pressing F1"""
         try:
             print("Reloading binds...")
             # Press F1 to open console
@@ -569,6 +807,10 @@ class KeyboardManager:
             
             # Press enter
             self.keyboard_simulator.single('enter')
+            time.sleep(0.2)
+            
+            # Press F1 to close console
+            self.keyboard_simulator.single('f1')
             time.sleep(0.2)
             
             print("Binds reloaded successfully")
@@ -604,6 +846,95 @@ class KeyboardManager:
     def regenerate_keys_cfg_protected(self) -> bool:
         """Regenerate the keys.cfg file with protected write operations."""
         return self.binds_manager.write_keys_cfg_with_sections_protected()
+    
+    def start_anti_afk(self) -> bool:
+        """Start the anti-AFK feature"""
+        if self.anti_afk_enabled:
+            logger.warning("Anti-AFK is already running")
+            return False
+        
+        try:
+            self.anti_afk_enabled = True
+            self.anti_afk_stop_event.clear()
+            self.anti_afk_thread = threading.Thread(target=self._anti_afk_loop, daemon=True)
+            self.anti_afk_thread.start()
+            logger.info("Anti-AFK started successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to start anti-AFK: {e}")
+            self.anti_afk_enabled = False
+            return False
+    
+    def stop_anti_afk(self) -> bool:
+        """Stop the anti-AFK feature"""
+        if not self.anti_afk_enabled:
+            logger.warning("Anti-AFK is not running")
+            return False
+        
+        try:
+            self.anti_afk_enabled = False
+            self.anti_afk_stop_event.set()
+            if self.anti_afk_thread and self.anti_afk_thread.is_alive():
+                self.anti_afk_thread.join(timeout=5)
+            logger.info("Anti-AFK stopped successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to stop anti-AFK: {e}")
+            return False
+    
+    def is_anti_afk_running(self) -> bool:
+        """Check if anti-AFK is currently running"""
+        return self.anti_afk_enabled and self.anti_afk_thread and self.anti_afk_thread.is_alive()
+    
+    def _anti_afk_loop(self):
+        """Anti-AFK loop that runs in background thread"""
+        logger.info("Anti-AFK loop started")
+        
+        while not self.anti_afk_stop_event.is_set():
+            try:
+                # Hold W down (move forward) for 1 second
+                logger.info("Anti-AFK: Holding W for 1 second")
+                self.keyboard_simulator.down('w')
+                
+                # Wait 1 second while holding W
+                if self.anti_afk_stop_event.wait(1):
+                    # If stopping, release W before breaking
+                    self.keyboard_simulator.up('w')
+                    break
+                
+                # Release W
+                self.keyboard_simulator.up('w')
+                
+                # Hold S down (move backward) for 1 second
+                logger.info("Anti-AFK: Holding S for 1 second")
+                self.keyboard_simulator.down('s')
+                
+                # Wait 1 second while holding S
+                if self.anti_afk_stop_event.wait(1):
+                    # If stopping, release S before breaking
+                    self.keyboard_simulator.up('s')
+                    break
+                
+                # Release S
+                self.keyboard_simulator.up('s')
+                
+                # Wait 1 minute (60 seconds) before next cycle
+                if self.anti_afk_stop_event.wait(60):
+                    break
+                    
+            except Exception as e:
+                logger.error(f"Error in anti-AFK loop: {e}")
+                # Make sure to release any held keys in case of error
+                try:
+                    self.keyboard_simulator.up('w')
+                    self.keyboard_simulator.up('s')
+                except:
+                    pass
+                # Wait a bit before retrying
+                if self.anti_afk_stop_event.wait(10):
+                    break
+        
+        logger.info("Anti-AFK loop stopped")
 
 
 def main():

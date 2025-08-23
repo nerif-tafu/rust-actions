@@ -16,6 +16,7 @@ import winreg
 from steam_manager import steam_manager
 import atexit
 import pyperclip
+import requests
 
 # Configure logging to capture all messages
 class QueueHandler(logging.Handler):
@@ -55,7 +56,6 @@ class RustControllerGUI:
     def _fetch_database_stats(self):
         """Fetch database statistics (called from background thread)"""
         try:
-            import requests
             response = requests.get("http://localhost:5000/steam/stats", timeout=2)
             if response.status_code == 200:
                 data = response.json()
@@ -98,7 +98,6 @@ class RustControllerGUI:
                 return False
             
             # Try to connect to the server
-            import requests
             response = requests.get("http://localhost:5000/health", timeout=2)
             return response.status_code == 200
         except:
@@ -336,6 +335,9 @@ class RustControllerGUI:
         self.update_database_button = ttk.Button(steam_frame, text="Update Item Database", command=self.update_item_database)
         self.update_database_button.grid(row=1, column=5, padx=(5, 0))
         
+        self.regenerate_binds_button = ttk.Button(steam_frame, text="Regenerate Rust-Actions Binds", command=self.regenerate_rust_actions_binds)
+        self.regenerate_binds_button.grid(row=1, column=6, padx=(5, 0))
+        
         # Progress bar for database updates
         self.progress_var = tk.DoubleVar()
         self.progress_bar = ttk.Progressbar(steam_frame, variable=self.progress_var, maximum=100)
@@ -494,6 +496,22 @@ class RustControllerGUI:
         ttk.Button(stack_inventory_frame, text="Copy PowerShell", 
                   command=lambda: self.copy_curl_to_clipboard("stack_inventory", {"iterations": int(self.stack_iterations_var.get())})).pack(side=tk.LEFT)
         
+        # Toggle Stack Inventory
+        toggle_stack_frame = ttk.Frame(crafting_frame)
+        toggle_stack_frame.pack(fill="x", pady=(10, 0))
+        
+        ttk.Button(toggle_stack_frame, text="Enable Continuous Stack", 
+                  command=lambda: self.test_api_call("toggle_stack_inventory", {"enable": True})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(toggle_stack_frame, text="Disable Continuous Stack", 
+                  command=lambda: self.test_api_call("toggle_stack_inventory", {"enable": False})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(toggle_stack_frame, text="Copy Enable PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("toggle_stack_inventory", {"enable": True})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(toggle_stack_frame, text="Copy Disable PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("toggle_stack_inventory", {"enable": False})).pack(side=tk.LEFT)
+        
         # Player Actions Section
         player_frame = ttk.LabelFrame(scrollable_frame, text="Player Actions", padding="5")
         player_frame.pack(fill="x", pady=(0, 10))
@@ -502,20 +520,50 @@ class RustControllerGUI:
         suicide_respawn_frame = ttk.Frame(player_frame)
         suicide_respawn_frame.pack(fill="x", pady=(0, 5))
         
-        ttk.Button(suicide_respawn_frame, text="Suicide", 
-                  command=lambda: self.test_api_call("suicide", {})).pack(side=tk.LEFT, padx=(0, 5))
+        # Row 1: Suicide (just kill)
+        row1_frame = ttk.Frame(suicide_respawn_frame)
+        row1_frame.pack(fill="x", pady=(0, 5))
         
-        ttk.Button(suicide_respawn_frame, text="Copy PowerShell", 
-                  command=lambda: self.copy_curl_to_clipboard("suicide", {})).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(row1_frame, text="Suicide (just kill)", 
+                  command=lambda: self.test_api_call("kill", {})).pack(side=tk.LEFT, padx=(0, 5))
         
-        self.respawn_id_var = tk.StringVar()
-        ttk.Entry(suicide_respawn_frame, textvariable=self.respawn_id_var, width=10).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(row1_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("kill", {})).pack(side=tk.LEFT, padx=(0, 5))
         
-        ttk.Button(suicide_respawn_frame, text="Respawn", 
-                  command=lambda: self.test_api_call("respawn", {"spawn_id": self.respawn_id_var.get() if self.respawn_id_var.get() else None})).pack(side=tk.LEFT, padx=(0, 5))
+        # Row 2: Random spawn (just respawn)
+        row2_frame = ttk.Frame(suicide_respawn_frame)
+        row2_frame.pack(fill="x", pady=(0, 5))
         
-        ttk.Button(suicide_respawn_frame, text="Copy PowerShell", 
-                  command=lambda: self.copy_curl_to_clipboard("respawn", {"spawn_id": self.respawn_id_var.get() if self.respawn_id_var.get() else None})).pack(side=tk.LEFT)
+        ttk.Button(row2_frame, text="Random spawn (just respawn)", 
+                  command=lambda: self.test_api_call("respawn_only", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(row2_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("respawn_only", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        # Row 3: Respawn random (kill and respawn)
+        row3_frame = ttk.Frame(suicide_respawn_frame)
+        row3_frame.pack(fill="x", pady=(0, 5))
+        
+        ttk.Button(row3_frame, text="Respawn random (kill and respawn)", 
+                  command=lambda: self.test_api_call("respawn_random", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(row3_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("respawn_random", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        # Row 4: Respawn bed (kill and respawn_sleepingbag <id>)
+        row4_frame = ttk.Frame(suicide_respawn_frame)
+        row4_frame.pack(fill="x", pady=(0, 5))
+        
+        ttk.Label(row4_frame, text="Bed ID:").pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.respawn_bed_id_var = tk.StringVar()
+        ttk.Entry(row4_frame, textvariable=self.respawn_bed_id_var, width=10).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(row4_frame, text="Respawn bed (kill and respawn_sleepingbag <id>)", 
+                  command=lambda: self.test_api_call("respawn_bed", {"spawn_id": self.respawn_bed_id_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(row4_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("respawn_bed", {"spawn_id": self.respawn_bed_id_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
         
         # Movement Actions
         movement_frame = ttk.Frame(player_frame)
@@ -538,6 +586,119 @@ class RustControllerGUI:
         
         ttk.Button(movement_frame, text="Copy PowerShell", 
                   command=lambda: self.copy_curl_to_clipboard("auto_crouch_attack", {})).pack(side=tk.LEFT)
+        
+        # Emotes Section
+        emote_frame = ttk.Frame(player_frame)
+        emote_frame.pack(fill="x", pady=(5, 0))
+        
+        ttk.Label(emote_frame, text="Emotes:").pack(side=tk.LEFT, padx=(0, 5))
+        
+        # Define available emotes
+        self.emotes = [
+            "wave", "victory", "shrug", "thumbsup", "hurry", "ok", "thumbsdown", 
+            "clap", "point", "friendly", "cabbagepatch", "twist", "raisetheroof", 
+            "beatchest", "throatcut", "fingergun", "shush", "shush_vocal", 
+            "watchingyou", "loser", "nono", "knucklescrack", "rps"
+        ]
+        
+        self.emote_var = tk.StringVar()
+        self.emote_combo = ttk.Combobox(emote_frame, textvariable=self.emote_var, values=self.emotes, width=15, state="readonly")
+        self.emote_combo.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # Set default value
+        if self.emotes:
+            self.emote_var.set(self.emotes[0])
+        
+        ttk.Button(emote_frame, text="Perform", 
+                  command=lambda: self.test_api_call("gesture", {"gesture_name": self.emote_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(emote_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("gesture", {"gesture_name": self.emote_var.get()})).pack(side=tk.LEFT)
+        
+        # Admin Commands Section
+        admin_frame = ttk.Frame(player_frame)
+        admin_frame.pack(fill="x", pady=(5, 0))
+        
+        # Noclip
+        noclip_frame = ttk.Frame(admin_frame)
+        noclip_frame.pack(fill="x", pady=(0, 5))
+        
+        ttk.Button(noclip_frame, text="Noclip ON", 
+                  command=lambda: self.test_api_call("noclip_toggle", {"enable": True})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(noclip_frame, text="Noclip OFF", 
+                  command=lambda: self.test_api_call("noclip_toggle", {"enable": False})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(noclip_frame, text="Copy ON PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("noclip_toggle", {"enable": True})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(noclip_frame, text="Copy OFF PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("noclip_toggle", {"enable": False})).pack(side=tk.LEFT)
+        
+        # God Mode
+        god_frame = ttk.Frame(admin_frame)
+        god_frame.pack(fill="x", pady=(0, 5))
+        
+        ttk.Button(god_frame, text="God Mode ON", 
+                  command=lambda: self.test_api_call("god_mode_toggle", {"enable": True})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(god_frame, text="God Mode OFF", 
+                  command=lambda: self.test_api_call("god_mode_toggle", {"enable": False})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(god_frame, text="Copy ON PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("god_mode_toggle", {"enable": True})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(god_frame, text="Copy OFF PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("god_mode_toggle", {"enable": False})).pack(side=tk.LEFT)
+        
+        # Time Control
+        time_frame = ttk.Frame(admin_frame)
+        time_frame.pack(fill="x", pady=(0, 5))
+        
+        ttk.Label(time_frame, text="Time:").pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.time_var = tk.StringVar(value="12")
+        time_combo = ttk.Combobox(time_frame, textvariable=self.time_var, 
+                                 values=["0", "4", "8", "12", "16", "20", "24"], width=5, state="readonly")
+        time_combo.pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(time_frame, text="Set Time", 
+                  command=lambda: self.test_api_call("set_time", {"time_hour": int(self.time_var.get())})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(time_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("set_time", {"time_hour": int(self.time_var.get())})).pack(side=tk.LEFT)
+        
+        # Teleport and Console
+        teleport_console_frame = ttk.Frame(admin_frame)
+        teleport_console_frame.pack(fill="x", pady=(0, 5))
+        
+        ttk.Button(teleport_console_frame, text="Teleport to Marker", 
+                  command=lambda: self.test_api_call("teleport_to_marker", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(teleport_console_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("teleport_to_marker", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(teleport_console_frame, text="Toggle Combat Log", 
+                  command=lambda: self.test_api_call("toggle_combat_log", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(teleport_console_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("toggle_combat_log", {})).pack(side=tk.LEFT)
+        
+        # Console Controls
+        console_frame = ttk.Frame(admin_frame)
+        console_frame.pack(fill="x", pady=(0, 5))
+        
+        ttk.Button(console_frame, text="Clear Console", 
+                  command=lambda: self.test_api_call("clear_console", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(console_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("clear_console", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(console_frame, text="Toggle Console", 
+                  command=lambda: self.test_api_call("toggle_console", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(console_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("toggle_console", {})).pack(side=tk.LEFT)
         
         # Chat Section
         chat_frame = ttk.LabelFrame(scrollable_frame, text="Chat", padding="5")
@@ -600,10 +761,10 @@ class RustControllerGUI:
         ttk.Entry(connect_frame, textvariable=self.server_ip_var, width=20).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(connect_frame, text="Connect", 
-                  command=lambda: self.test_api_call("connect", {"ip": self.server_ip_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+                  command=lambda: self.test_api_call("connect", {"server_ip": self.server_ip_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(connect_frame, text="Copy PowerShell", 
-                  command=lambda: self.copy_curl_to_clipboard("connect", {"ip": self.server_ip_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.copy_curl_to_clipboard("connect", {"server_ip": self.server_ip_var.get()})).pack(side=tk.LEFT)
         
         # Settings Section
         settings_frame = ttk.LabelFrame(scrollable_frame, text="Settings", padding="5")
@@ -676,6 +837,36 @@ class RustControllerGUI:
         ttk.Button(hud_frame, text="Copy PowerShell", 
                   command=lambda: self.copy_curl_to_clipboard("set_hud_state", {"enabled": self.hud_state_var.get() == "enabled"})).pack(side=tk.LEFT)
         
+        # Anti-AFK Section
+        anti_afk_frame = ttk.Frame(settings_frame)
+        anti_afk_frame.pack(fill="x", pady=(10, 0))
+        
+        ttk.Label(anti_afk_frame, text="Anti-AFK:").pack(anchor=tk.W)
+        
+        # Anti-AFK status label
+        self.anti_afk_status_var = tk.StringVar(value="Status: Unknown")
+        anti_afk_status_label = ttk.Label(anti_afk_frame, textvariable=self.anti_afk_status_var)
+        anti_afk_status_label.pack(anchor=tk.W, pady=(0, 5))
+        
+        # Anti-AFK buttons
+        anti_afk_buttons_frame = ttk.Frame(anti_afk_frame)
+        anti_afk_buttons_frame.pack(fill="x", pady=(0, 5))
+        
+        ttk.Button(anti_afk_buttons_frame, text="Start Anti-AFK", 
+                  command=self.start_anti_afk).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(anti_afk_buttons_frame, text="Stop Anti-AFK", 
+                  command=self.stop_anti_afk).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(anti_afk_buttons_frame, text="Check Status", 
+                  command=self.check_anti_afk_status).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(anti_afk_buttons_frame, text="Copy PowerShell (Start)", 
+                  command=lambda: self.copy_curl_to_clipboard("start_anti_afk", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(anti_afk_buttons_frame, text="Copy PowerShell (Stop)", 
+                  command=lambda: self.copy_curl_to_clipboard("stop_anti_afk", {})).pack(side=tk.LEFT)
+        
         # Input/Clipboard Section
         input_frame = ttk.LabelFrame(scrollable_frame, text="Input & Clipboard", padding="5")
         input_frame.pack(fill="x", pady=(0, 10))
@@ -737,7 +928,7 @@ class RustControllerGUI:
         
         # Execute immediately if no delay or negative delay
         # Show info for long-running operations
-        if action in ["stack_inventory", "cancel_all_crafting"]:
+        if action in ["stack_inventory", "cancel_all_crafting", "toggle_stack_inventory"]:
             self.log_message(f"⏳ Starting {action.replace('_', ' ').title()} - this may take up to 2 minutes...")
         
         # Run API call in background thread to prevent GUI freezing
@@ -746,7 +937,6 @@ class RustControllerGUI:
     def _execute_api_call(self, action, params):
         """Execute the actual API call"""
         try:
-            import requests
             import json
             
             # Map action names to API endpoints
@@ -755,7 +945,12 @@ class RustControllerGUI:
                 "cancel_craft": "/craft/cancel/name",  # Changed from /craft/cancel to /craft/cancel/name
                 "cancel_all_crafting": "/craft/cancel-all",
                 "suicide": "/player/suicide",
+                "kill": "/player/kill",
                 "respawn": "/player/respawn",
+                "respawn_only": "/player/respawn-only",
+                "respawn_random": "/player/respawn-random",
+                "respawn_bed": "/player/respawn-bed",
+                "gesture": "/player/gesture",
                 "auto_run": "/player/auto-run",
                 "auto_run_jump": "/player/auto-run-jump",
                 "auto_crouch_attack": "/player/auto-crouch-attack",
@@ -770,7 +965,17 @@ class RustControllerGUI:
                 "set_master_volume": "/settings/master-volume",
                 "set_hud_state": "/settings/hud",  # Changed from /settings/hud-state to /settings/hud
                 "copy_json": "/clipboard/copy-json",
-                "type_string": "/input/type-enter"  # Changed from /input/type to /input/type-enter
+                "type_string": "/input/type-enter",  # Changed from /input/type to /input/type-enter
+                "start_anti_afk": "/anti-afk/start",
+                "stop_anti_afk": "/anti-afk/stop",
+                "toggle_stack_inventory": "/inventory/toggle-stack",
+                "noclip_toggle": "/player/noclip",
+                "god_mode_toggle": "/player/god-mode",
+                "set_time": "/player/set-time",
+                "teleport_to_marker": "/player/teleport-marker",
+                "toggle_combat_log": "/player/combat-log",
+                "clear_console": "/player/clear-console",
+                "toggle_console": "/player/toggle-console"
             }
             
             endpoint = endpoint_map.get(action)
@@ -782,7 +987,7 @@ class RustControllerGUI:
             
             # Determine timeout based on action type
             # Long-running operations need more time
-            if action in ["stack_inventory", "cancel_all_crafting"]:
+            if action in ["stack_inventory", "cancel_all_crafting", "toggle_stack_inventory"]:
                 timeout = 120  # 2 minutes for long operations
             else:
                 timeout = 5    # 5 seconds for regular operations
@@ -830,7 +1035,12 @@ class RustControllerGUI:
             "cancel_craft": "/craft/cancel/name",
             "cancel_all_crafting": "/craft/cancel-all",
             "suicide": "/player/suicide",
+            "kill": "/player/kill",
             "respawn": "/player/respawn",
+            "respawn_only": "/player/respawn-only",
+            "respawn_random": "/player/respawn-random",
+            "respawn_bed": "/player/respawn-bed",
+            "gesture": "/player/gesture",
             "auto_run": "/player/auto-run",
             "auto_run_jump": "/player/auto-run-jump",
             "auto_crouch_attack": "/player/auto-crouch-attack",
@@ -845,7 +1055,15 @@ class RustControllerGUI:
             "set_master_volume": "/settings/master-volume",
             "set_hud_state": "/settings/hud",
             "copy_json": "/clipboard/copy-json",
-            "type_string": "/input/type-enter"
+            "type_string": "/input/type-enter",
+            "toggle_stack_inventory": "/inventory/toggle-stack",
+            "noclip_toggle": "/player/noclip",
+            "god_mode_toggle": "/player/god-mode",
+            "set_time": "/player/set-time",
+            "teleport_to_marker": "/player/teleport-marker",
+            "toggle_combat_log": "/player/combat-log",
+            "clear_console": "/player/clear-console",
+            "toggle_console": "/player/toggle-console"
         }
         
         endpoint = endpoint_map.get(action)
@@ -893,8 +1111,6 @@ class RustControllerGUI:
     def refresh_item_dropdowns(self):
         """Refresh the item dropdowns with data from the database"""
         try:
-            import requests
-            
             # Get items from the Steam database
             response = requests.get("http://localhost:5000/steam/items", timeout=5)
             if response.status_code == 200:
@@ -937,6 +1153,59 @@ class RustControllerGUI:
             # Log the full error for debugging
             import traceback
             print(f"Full error: {traceback.format_exc()}")
+    
+    def start_anti_afk(self):
+        """Start the anti-AFK feature"""
+        try:
+            response = requests.post("http://localhost:5000/anti-afk/start", timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    self.anti_afk_status_var.set("Status: Running")
+                    self.log_message("✅ Anti-AFK started successfully")
+                else:
+                    self.log_message(f"❌ Failed to start Anti-AFK: {result.get('message', 'Unknown error')}")
+            else:
+                self.log_message(f"❌ HTTP Error {response.status_code} when starting Anti-AFK")
+        except Exception as e:
+            self.log_message(f"❌ Error starting Anti-AFK: {str(e)}")
+    
+    def stop_anti_afk(self):
+        """Stop the anti-AFK feature"""
+        try:
+            response = requests.post("http://localhost:5000/anti-afk/stop", timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    self.anti_afk_status_var.set("Status: Stopped")
+                    self.log_message("✅ Anti-AFK stopped successfully")
+                else:
+                    self.log_message(f"❌ Failed to stop Anti-AFK: {result.get('message', 'Unknown error')}")
+            else:
+                self.log_message(f"❌ HTTP Error {response.status_code} when stopping Anti-AFK")
+        except Exception as e:
+            self.log_message(f"❌ Error stopping Anti-AFK: {str(e)}")
+    
+    def check_anti_afk_status(self):
+        """Check the current anti-AFK status"""
+        try:
+            response = requests.get("http://localhost:5000/anti-afk/status", timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    is_running = result.get('running', False)
+                    if is_running:
+                        self.anti_afk_status_var.set("Status: Running")
+                        self.log_message("✅ Anti-AFK is currently running")
+                    else:
+                        self.anti_afk_status_var.set("Status: Stopped")
+                        self.log_message("ℹ️ Anti-AFK is not running")
+                else:
+                    self.log_message(f"❌ Failed to get Anti-AFK status: {result.get('message', 'Unknown error')}")
+            else:
+                self.log_message(f"❌ HTTP Error {response.status_code} when checking Anti-AFK status")
+        except Exception as e:
+            self.log_message(f"❌ Error checking Anti-AFK status: {str(e)}")
     
     def setup_system_tray(self):
         """Setup system tray icon and menu"""
@@ -1028,7 +1297,6 @@ class RustControllerGUI:
         
         while attempt < max_attempts:
             try:
-                import requests
                 response = requests.get("http://localhost:5000/health", timeout=2)
                 if response.status_code == 200:
                     self.log_message("✅ Server is ready and responding")
@@ -1047,7 +1315,6 @@ class RustControllerGUI:
     def _test_server_health(self):
         """Test if the server is responding"""
         try:
-            import requests
             response = requests.get("http://localhost:5000/health", timeout=5)
             if response.status_code == 200:
                 self.log_message("✅ Server health check passed")
@@ -1360,6 +1627,67 @@ class RustControllerGUI:
             else:
                 self.progress_label_var.set(f"Update failed: {result['message']}")
                 messagebox.showerror("Update Failed", result["message"])
+    
+    def regenerate_rust_actions_binds(self):
+        """Regenerate all rust-actions binds in keys.cfg"""
+        # Disable regenerate button during operation
+        self.regenerate_binds_button.config(state="disabled")
+        self.progress_label_var.set("Regenerating rust-actions binds...")
+        
+        def regenerate_thread():
+            try:
+                # Call the Flask server to regenerate binds with cleared dynamic binds
+                try:
+                    response = requests.post("http://localhost:5000/binds-manager/regenerate-cleared", timeout=30)
+                    if response.status_code == 200:
+                        result = response.json()
+                        success = result.get('success', False)
+                        if not success:
+                            self.log_message(f"⚠️ Regenerate warning: {result.get('message', 'Unknown error')}")
+                    else:
+                        success = False
+                        self.log_message(f"⚠️ Could not regenerate binds: HTTP {response.status_code}")
+                except Exception as e:
+                    success = False
+                    self.log_message(f"⚠️ Error calling regenerate endpoint: {str(e)}")
+                
+                if success:
+                    # Clear keyboard manager cache and refresh it
+                    try:
+                        # Get the keyboard manager instance from the Flask app
+                        response = requests.get("http://localhost:5000/keyboard-manager/clear-cache", timeout=5)
+                        if response.status_code == 200:
+                            result = response.json()
+                            if result.get('success'):
+                                self.log_message("✅ Keyboard manager cache cleared successfully")
+                            else:
+                                self.log_message(f"⚠️ Keyboard manager cache clear warning: {result.get('message', 'Unknown')}")
+                        else:
+                            self.log_message(f"⚠️ Could not clear keyboard manager cache: HTTP {response.status_code}")
+                    except Exception as e:
+                        self.log_message(f"⚠️ Error clearing keyboard manager cache: {str(e)}")
+                    
+                    self.log_message("✅ Dynamic binds have been RESET and cleared")
+                
+                # Update UI in main thread
+                self.root.after(0, lambda: self.handle_regenerate_result(success))
+                
+            except Exception as e:
+                self.root.after(0, lambda: self.handle_regenerate_result(False, str(e)))
+        
+        threading.Thread(target=regenerate_thread, daemon=True).start()
+    
+    def handle_regenerate_result(self, success, error_message=None):
+        """Handle regenerate binds result"""
+        self.regenerate_binds_button.config(state="normal")
+        
+        if success:
+            self.progress_label_var.set("Rust-actions binds regenerated and RESET successfully!")
+            messagebox.showinfo("Success", "All rust-actions binds have been regenerated successfully!\n\nThis includes:\n• Crafting binds for all items\n• API command binds\n• Dynamic chat/connection binds (COMPLETELY RESET)\n\nAll dynamic binds have been permanently cleared and reset.\nYou may need to restart Rust or press F1 and type 'exec keys.cfg' to apply the changes.")
+        else:
+            error_msg = error_message or "Unknown error occurred"
+            self.progress_label_var.set(f"Regenerate failed: {error_msg}")
+            messagebox.showerror("Regenerate Failed", f"Failed to regenerate rust-actions binds:\n{error_msg}")
     
     def run(self):
         """Start the GUI application"""
