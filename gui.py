@@ -15,6 +15,7 @@ from pystray import MenuItem as item
 import winreg
 from steam_manager import steam_manager
 import atexit
+import pyperclip
 
 # Configure logging to capture all messages
 class QueueHandler(logging.Handler):
@@ -32,7 +33,6 @@ class RustControllerGUI:
         self.server_process = None
         self.log_queue = queue.Queue()
         self.startup_enabled = self.check_startup_enabled()
-        self.gui_ready = threading.Event()
         self.shutdown_event = threading.Event()
         
         # Setup logging
@@ -41,47 +41,71 @@ class RustControllerGUI:
         # Start server in main thread
         self.start_server()
         
-        # Start GUI in separate thread
-        self.gui_thread = threading.Thread(target=self._run_gui, daemon=True)
-        self.gui_thread.start()
+        # Wait for server to be fully ready before starting GUI
+        self.wait_for_server_ready()
         
-        # Wait for GUI to be ready
-        self.gui_ready.wait()
-        
-        # Start background tasks
+        # Start background tasks before GUI
         self.start_background_tasks()
+        
+        # Run GUI in main thread (simpler and more reliable)
+        self._run_gui()
     
-    def _update_stats_loop(self):
-        """Background thread for updating database stats"""
-        while not self.shutdown_event.is_set():
-            try:
-                # Use after_idle to schedule GUI updates from main thread
-                if hasattr(self, 'root') and self.root:
-                    self.root.after_idle(self.update_database_stats)
-                time.sleep(30)  # Update every 30 seconds
-            except Exception as e:
-                print(f"Error in stats update loop: {e}")
-                time.sleep(30)
+
     
-    def _monitor_server_loop(self):
-        """Background thread for monitoring server output"""
-        while not self.shutdown_event.is_set():
-            try:
-                if self.server_process and self.server_running:
-                    # Read server output
-                    output = self.server_process.stdout.readline()
-                    if output:
-                        # Use after_idle to update GUI from main thread
-                        if hasattr(self, 'root') and self.root:
-                            self.root.after_idle(lambda: self.log_message(output.strip()))
+    def _fetch_database_stats(self):
+        """Fetch database statistics (called from background thread)"""
+        try:
+            import requests
+            response = requests.get("http://localhost:5000/steam/stats", timeout=2)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success'):
+                    stats = data.get('stats', {})
+                    item_count = stats.get('itemCount', 0)
+                    last_updated = stats.get('lastUpdated', '')
+                    if last_updated:
+                        # Format the date nicely
+                        try:
+                            from datetime import datetime
+                            dt = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                            date_str = dt.strftime('%Y-%m-%d %H:%M')
+                            return f"Database: {item_count} items (Updated: {date_str})"
+                        except:
+                            return f"Database: {item_count} items"
+                    else:
+                        return f"Database: {item_count} items"
                 else:
-                    time.sleep(1)
-            except Exception as e:
-                print(f"Error in server monitoring loop: {e}")
-                time.sleep(1)
+                    return "Database: No data available"
+            else:
+                return "Database: Server not responding"
+        except Exception as e:
+            return "Database: Not connected"
+    
+
+    
+    def check_server_status(self):
+        """Check if the server is actually running and responding"""
+        if not self.server_running or not self.server_process:
+            return False
+        
+        try:
+            # Check if process is still running
+            if self.server_process.poll() is not None:
+                self.server_running = False
+                if hasattr(self, 'root') and self.root:
+                    self.root.after_idle(lambda: self._update_server_status("Stopped"))
+                self.log_message("⚠️ Server process has stopped")
+                return False
+            
+            # Try to connect to the server
+            import requests
+            response = requests.get("http://localhost:5000/health", timeout=2)
+            return response.status_code == 200
+        except:
+            return False
     
     def _run_gui(self):
-        """Run the GUI in a separate thread"""
+        """Run the GUI in the main thread"""
         self.root = tk.Tk()
         self.root.title("Rust Game Controller API")
         self.root.geometry("1200x700")
@@ -105,24 +129,66 @@ class RustControllerGUI:
         # Handle window close
         self.root.protocol("WM_DELETE_WINDOW", self.minimize_to_tray)
         
-        # Signal that GUI is ready
-        self.gui_ready.set()
+        # Populate dropdowns immediately since server is ready
+        self.refresh_item_dropdowns()
         
-        # Schedule initial dropdown refresh after a short delay
-        self.root.after(1000, self.refresh_item_dropdowns)
+
         
         # Start GUI main loop
         self.root.mainloop()
     
+
+    
     def start_background_tasks(self):
-        """Start background tasks in separate threads"""
-        # Start database stats update thread
-        self.stats_thread = threading.Thread(target=self._update_stats_loop, daemon=True)
-        self.stats_thread.start()
+        """Start background tasks in a single thread"""
+        # Start combined background task thread
+        self.background_thread = threading.Thread(target=self._background_task_loop, daemon=True)
+        self.background_thread.start()
+    
+    def _background_task_loop(self):
+        """Combined background task loop"""
+        last_stats_update = 0
+        last_server_check = 0
         
-        # Start server monitoring thread
-        self.monitor_thread = threading.Thread(target=self._monitor_server_loop, daemon=True)
-        self.monitor_thread.start()
+        while not self.shutdown_event.is_set():
+            try:
+                current_time = time.time()
+                
+                # Update stats every 30 seconds
+                if current_time - last_stats_update >= 30:
+                    stats_data = self._fetch_database_stats()
+                    if hasattr(self, 'root') and self.root:
+                        self.root.after_idle(lambda: self._update_db_stats_display(stats_data))
+                    last_stats_update = current_time
+                
+                # Monitor server output
+                if self.server_process and self.server_running:
+                    try:
+                        output = self.server_process.stdout.readline()
+                        if output:
+                            output = output.strip()
+                            
+                            # Filter out repetitive health check messages
+                            if "GET /health HTTP/1.1" in output:
+                                continue  # Skip health check logs
+                            
+                            # Add to log queue for GUI processing
+                            self.log_queue.put(output)
+                    except:
+                        pass
+                
+                # Check server status every 30 seconds
+                if current_time - last_server_check >= 30:
+                    if self.server_running and not self.check_server_status():
+                        if hasattr(self, 'root') and self.root:
+                            self.root.after_idle(lambda: self.log_message("⚠️ Server is not responding"))
+                    last_server_check = current_time
+                
+                time.sleep(1)  # Check every second
+                
+            except Exception as e:
+                print(f"Error in background task loop: {e}")
+                time.sleep(5)
     
     def setup_logging(self):
         """Setup logging to capture all messages"""
@@ -309,6 +375,19 @@ class RustControllerGUI:
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
+        # Command Delay Section
+        delay_frame = ttk.Frame(scrollable_frame)
+        delay_frame.pack(fill="x", pady=(0, 10))
+        
+        ttk.Label(delay_frame, text="Command Delay (ms):").pack(side=tk.LEFT, padx=(0, 5))
+        self.command_delay_var = tk.StringVar(value="0")
+        delay_entry = ttk.Entry(delay_frame, textvariable=self.command_delay_var, width=8)
+        delay_entry.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # Add tooltip or help text
+        ttk.Label(delay_frame, text="Delay before each command (0 = no delay)", 
+                 font=("TkDefaultFont", 8), foreground="gray").pack(side=tk.LEFT)
+        
         # Crafting Section
         crafting_frame = ttk.LabelFrame(scrollable_frame, text="Crafting", padding="5")
         crafting_frame.pack(fill="x", pady=(0, 10))
@@ -325,7 +404,10 @@ class RustControllerGUI:
         ttk.Entry(craft_id_frame, textvariable=self.craft_quantity_var, width=5).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(craft_id_frame, text="Craft", 
-                  command=lambda: self.test_api_call("craft", {"item_id": self.craft_id_var.get(), "quantity": self.craft_quantity_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("craft", {"item_id": self.craft_id_var.get(), "quantity": self.craft_quantity_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(craft_id_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("craft", {"item_id": self.craft_id_var.get(), "quantity": self.craft_quantity_var.get()})).pack(side=tk.LEFT)
         
         # Craft by Name
         ttk.Label(crafting_frame, text="Craft by Name:").pack(anchor=tk.W, pady=(10, 0))
@@ -340,7 +422,10 @@ class RustControllerGUI:
         ttk.Entry(craft_name_frame, textvariable=self.craft_name_quantity_var, width=5).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(craft_name_frame, text="Craft", 
-                  command=lambda: self.test_api_call("craft", {"item_name": self.craft_name_var.get(), "quantity": self.craft_name_quantity_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("craft", {"item_name": self.craft_name_var.get(), "quantity": self.craft_name_quantity_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(craft_name_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("craft", {"item_name": self.craft_name_var.get(), "quantity": self.craft_name_quantity_var.get()})).pack(side=tk.LEFT)
         
         # Refresh items button
         ttk.Button(craft_name_frame, text="Refresh", 
@@ -358,7 +443,10 @@ class RustControllerGUI:
         ttk.Entry(cancel_id_frame, textvariable=self.cancel_quantity_var, width=5).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(cancel_id_frame, text="Cancel", 
-                  command=lambda: self.test_api_call("cancel_craft", {"item_id": self.cancel_id_var.get(), "quantity": self.cancel_quantity_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("cancel_craft", {"item_id": self.cancel_id_var.get(), "quantity": self.cancel_quantity_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(cancel_id_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("cancel_craft", {"item_id": self.cancel_id_var.get(), "quantity": self.cancel_quantity_var.get()})).pack(side=tk.LEFT)
         
         # Cancel Craft by Name
         ttk.Label(crafting_frame, text="Cancel Craft by Name:").pack(anchor=tk.W, pady=(10, 0))
@@ -373,11 +461,20 @@ class RustControllerGUI:
         ttk.Entry(cancel_name_frame, textvariable=self.cancel_name_quantity_var, width=5).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(cancel_name_frame, text="Cancel", 
-                  command=lambda: self.test_api_call("cancel_craft", {"item_name": self.cancel_name_var.get(), "quantity": self.cancel_name_quantity_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("cancel_craft", {"item_name": self.cancel_name_var.get(), "quantity": self.cancel_name_quantity_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(cancel_name_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("cancel_craft", {"item_name": self.cancel_name_var.get(), "quantity": self.cancel_name_quantity_var.get()})).pack(side=tk.LEFT)
         
         # Cancel All Crafting
-        ttk.Button(crafting_frame, text="Cancel All Crafting", 
-                  command=lambda: self.test_api_call("cancel_all_crafting", {})).pack(fill="x", pady=(10, 0))
+        cancel_all_frame = ttk.Frame(crafting_frame)
+        cancel_all_frame.pack(fill="x", pady=(10, 0))
+        
+        ttk.Button(cancel_all_frame, text="Cancel All Crafting", 
+                  command=lambda: self.test_api_call("cancel_all_crafting", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(cancel_all_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("cancel_all_crafting", {})).pack(side=tk.LEFT)
         
         # Player Actions Section
         player_frame = ttk.LabelFrame(scrollable_frame, text="Player Actions", padding="5")
@@ -390,11 +487,17 @@ class RustControllerGUI:
         ttk.Button(suicide_respawn_frame, text="Suicide", 
                   command=lambda: self.test_api_call("suicide", {})).pack(side=tk.LEFT, padx=(0, 5))
         
+        ttk.Button(suicide_respawn_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("suicide", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
         self.respawn_id_var = tk.StringVar()
         ttk.Entry(suicide_respawn_frame, textvariable=self.respawn_id_var, width=10).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(suicide_respawn_frame, text="Respawn", 
-                  command=lambda: self.test_api_call("respawn", {"spawn_id": self.respawn_id_var.get() if self.respawn_id_var.get() else None})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("respawn", {"spawn_id": self.respawn_id_var.get() if self.respawn_id_var.get() else None})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(suicide_respawn_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("respawn", {"spawn_id": self.respawn_id_var.get() if self.respawn_id_var.get() else None})).pack(side=tk.LEFT)
         
         # Movement Actions
         movement_frame = ttk.Frame(player_frame)
@@ -403,11 +506,20 @@ class RustControllerGUI:
         ttk.Button(movement_frame, text="Auto Run", 
                   command=lambda: self.test_api_call("auto_run", {})).pack(side=tk.LEFT, padx=(0, 5))
         
+        ttk.Button(movement_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("auto_run", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
         ttk.Button(movement_frame, text="Auto Run & Jump", 
                   command=lambda: self.test_api_call("auto_run_jump", {})).pack(side=tk.LEFT, padx=(0, 5))
         
+        ttk.Button(movement_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("auto_run_jump", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
         ttk.Button(movement_frame, text="Auto Crouch & Attack", 
-                  command=lambda: self.test_api_call("auto_crouch_attack", {})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("auto_crouch_attack", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(movement_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("auto_crouch_attack", {})).pack(side=tk.LEFT)
         
         # Chat Section
         chat_frame = ttk.LabelFrame(scrollable_frame, text="Chat", padding="5")
@@ -422,7 +534,10 @@ class RustControllerGUI:
         ttk.Entry(global_chat_frame, textvariable=self.global_chat_var, width=25).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(global_chat_frame, text="Send", 
-                  command=lambda: self.test_api_call("global_chat", {"message": self.global_chat_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("global_chat", {"message": self.global_chat_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(global_chat_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("global_chat", {"message": self.global_chat_var.get()})).pack(side=tk.LEFT)
         
         # Team Chat
         ttk.Label(chat_frame, text="Team Chat:").pack(anchor=tk.W, pady=(10, 0))
@@ -433,7 +548,10 @@ class RustControllerGUI:
         ttk.Entry(team_chat_frame, textvariable=self.team_chat_var, width=25).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(team_chat_frame, text="Send", 
-                  command=lambda: self.test_api_call("team_chat", {"message": self.team_chat_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("team_chat", {"message": self.team_chat_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(team_chat_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("team_chat", {"message": self.team_chat_var.get()})).pack(side=tk.LEFT)
         
         # Game Management Section
         game_frame = ttk.LabelFrame(scrollable_frame, text="Game Management", padding="5")
@@ -446,8 +564,14 @@ class RustControllerGUI:
         ttk.Button(quit_disconnect_frame, text="Quit Game", 
                   command=lambda: self.test_api_call("quit_game", {})).pack(side=tk.LEFT, padx=(0, 5))
         
+        ttk.Button(quit_disconnect_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("quit_game", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
         ttk.Button(quit_disconnect_frame, text="Disconnect", 
-                  command=lambda: self.test_api_call("disconnect", {})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("disconnect", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(quit_disconnect_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("disconnect", {})).pack(side=tk.LEFT)
         
         # Connect to Server
         ttk.Label(game_frame, text="Connect to Server:").pack(anchor=tk.W, pady=(10, 0))
@@ -458,11 +582,20 @@ class RustControllerGUI:
         ttk.Entry(connect_frame, textvariable=self.server_ip_var, width=20).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(connect_frame, text="Connect", 
-                  command=lambda: self.test_api_call("connect", {"ip": self.server_ip_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("connect", {"ip": self.server_ip_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(connect_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("connect", {"ip": self.server_ip_var.get()})).pack(side=tk.LEFT)
         
         # Inventory
-        ttk.Button(game_frame, text="Stack Inventory", 
-                  command=lambda: self.test_api_call("stack_inventory", {})).pack(fill="x", pady=(10, 0))
+        stack_inventory_frame = ttk.Frame(game_frame)
+        stack_inventory_frame.pack(fill="x", pady=(10, 0))
+        
+        ttk.Button(stack_inventory_frame, text="Stack Inventory", 
+                  command=lambda: self.test_api_call("stack_inventory", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(stack_inventory_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("stack_inventory", {})).pack(side=tk.LEFT)
         
         # Settings Section
         settings_frame = ttk.LabelFrame(scrollable_frame, text="Settings", padding="5")
@@ -477,7 +610,10 @@ class RustControllerGUI:
         ttk.Entry(radius_frame, textvariable=self.radius_var, width=10).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(radius_frame, text="Set", 
-                  command=lambda: self.test_api_call("set_look_radius", {"radius": self.radius_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("set_look_radius", {"radius": self.radius_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(radius_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("set_look_radius", {"radius": self.radius_var.get()})).pack(side=tk.LEFT)
         
         # Volume controls
         volume_frame = ttk.Frame(settings_frame)
@@ -488,14 +624,20 @@ class RustControllerGUI:
         ttk.Entry(volume_frame, textvariable=self.voice_volume_var, width=10).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(volume_frame, text="Set", 
-                  command=lambda: self.test_api_call("set_voice_volume", {"volume": self.voice_volume_var.get()})).pack(side=tk.LEFT, padx=(0, 10))
+                  command=lambda: self.test_api_call("set_voice_volume", {"volume": self.voice_volume_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(volume_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("set_voice_volume", {"volume": self.voice_volume_var.get()})).pack(side=tk.LEFT, padx=(0, 10))
         
         ttk.Label(volume_frame, text="Master Volume:").pack(anchor=tk.W)
         self.master_volume_var = tk.StringVar()
         ttk.Entry(volume_frame, textvariable=self.master_volume_var, width=10).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(volume_frame, text="Set", 
-                  command=lambda: self.test_api_call("set_master_volume", {"volume": self.master_volume_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("set_master_volume", {"volume": self.master_volume_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(volume_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("set_master_volume", {"volume": self.master_volume_var.get()})).pack(side=tk.LEFT)
         
         # HUD State
         hud_frame = ttk.Frame(settings_frame)
@@ -507,7 +649,10 @@ class RustControllerGUI:
         hud_combo.pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(hud_frame, text="Set", 
-                  command=lambda: self.test_api_call("set_hud_state", {"enabled": self.hud_state_var.get() == "enabled"})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("set_hud_state", {"enabled": self.hud_state_var.get() == "enabled"})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(hud_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("set_hud_state", {"enabled": self.hud_state_var.get() == "enabled"})).pack(side=tk.LEFT)
         
         # Input/Clipboard Section
         input_frame = ttk.LabelFrame(scrollable_frame, text="Input & Clipboard", padding="5")
@@ -522,7 +667,10 @@ class RustControllerGUI:
         ttk.Entry(json_frame, textvariable=self.json_var, width=25).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(json_frame, text="Copy", 
-                  command=lambda: self.test_api_call("copy_json", {"json_data": self.json_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("copy_json", {"json_data": self.json_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(json_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("copy_json", {"json_data": self.json_var.get()})).pack(side=tk.LEFT)
         
         # Type string and enter
         ttk.Label(input_frame, text="Type String & Enter:").pack(anchor=tk.W, pady=(10, 0))
@@ -533,7 +681,10 @@ class RustControllerGUI:
         ttk.Entry(type_frame, textvariable=self.type_string_var, width=25).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(type_frame, text="Type", 
-                  command=lambda: self.test_api_call("type_string", {"text": self.type_string_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.test_api_call("type_string", {"text": self.type_string_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(type_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("type_string", {"text": self.type_string_var.get()})).pack(side=tk.LEFT)
     
     def test_api_call(self, action, params):
         """Make an API call to test the game control endpoints"""
@@ -541,6 +692,32 @@ class RustControllerGUI:
             messagebox.showwarning("Warning", "Server is not running. Please start the server first.")
             return
         
+        # Check if server is actually responding
+        if not self.check_server_status():
+            messagebox.showwarning("Warning", "Server is not responding. Please check the server status.")
+            return
+        
+        # Get the command delay from the GUI
+        try:
+            delay_ms = int(self.command_delay_var.get())
+            if delay_ms > 0:
+                # Log that command is being delayed
+                self.log_message(f"Command delayed: {action.replace('_', ' ').title()} will execute in {delay_ms}ms")
+                # Schedule the API call with delay
+                self.root.after(delay_ms, lambda: self._execute_api_call(action, params))
+                return
+            elif delay_ms < 0:
+                # Log warning for negative delay
+                self.log_message(f"Warning: Negative delay ({delay_ms}ms) ignored, executing immediately")
+        except ValueError:
+            # If delay is not a valid number, use 0
+            pass
+        
+        # Execute immediately if no delay or negative delay
+        self._execute_api_call(action, params)
+    
+    def _execute_api_call(self, action, params):
+        """Execute the actual API call"""
         try:
             import requests
             import json
@@ -589,6 +766,8 @@ class RustControllerGUI:
             
             if response.status_code == 200:
                 result = response.json()
+                # Debug logging to see what the API returns
+                self.log_message(f"DEBUG: API Response for {action}: {result}")
                 if result.get('success'):
                     # Log success to server logs instead of showing popup
                     self.log_message(f"API Success: {action.replace('_', ' ').title()} - {result.get('message', 'Action completed successfully')}")
@@ -603,6 +782,70 @@ class RustControllerGUI:
             messagebox.showerror("Timeout Error", "Request timed out. The server may be busy.")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred: {str(e)}")
+    
+    def generate_curl_command(self, action, params):
+        """Generate a Windows PowerShell compatible command for the given API call"""
+        # Map action names to API endpoints
+        endpoint_map = {
+            "craft": "/craft/name",
+            "cancel_craft": "/craft/cancel/name",
+            "cancel_all_crafting": "/craft/cancel-all",
+            "suicide": "/player/suicide",
+            "respawn": "/player/respawn",
+            "auto_run": "/player/auto-run",
+            "auto_run_jump": "/player/auto-run-jump",
+            "auto_crouch_attack": "/player/auto-crouch-attack",
+            "global_chat": "/chat/global",
+            "team_chat": "/chat/team",
+            "quit_game": "/game/quit",
+            "disconnect": "/game/disconnect",
+            "connect": "/game/connect",
+            "stack_inventory": "/inventory/stack",
+            "set_look_radius": "/settings/look-radius",
+            "set_voice_volume": "/settings/voice-volume",
+            "set_master_volume": "/settings/master-volume",
+            "set_hud_state": "/settings/hud",
+            "copy_json": "/clipboard/copy-json",
+            "type_string": "/input/type-enter"
+        }
+        
+        endpoint = endpoint_map.get(action)
+        if not endpoint:
+            return None
+        
+        url = f"http://localhost:5000{endpoint}"
+        
+        # Build the PowerShell command
+        ps_cmd = f'Invoke-WebRequest -Uri "{url}" -Method POST'
+        
+        # Add headers
+        ps_cmd += ' -Headers @{"Content-Type"="application/json"}'
+        
+        # Add JSON data if there are parameters
+        if params:
+            # Filter out empty values
+            filtered_params = {k: v for k, v in params.items() if v is not None and v != ""}
+            if filtered_params:
+                import json
+                json_data = json.dumps(filtered_params)
+                # For PowerShell, we need to escape single quotes and use single quotes around the JSON
+                json_data = json_data.replace("'", "''")
+                ps_cmd += f" -Body '{json_data}'"
+        
+        return ps_cmd
+    
+    def copy_curl_to_clipboard(self, action, params):
+        """Generate PowerShell command and copy to clipboard"""
+        ps_cmd = self.generate_curl_command(action, params)
+        if ps_cmd:
+            try:
+                pyperclip.copy(ps_cmd)
+                self.log_message(f"✅ PowerShell command copied to clipboard: {action.replace('_', ' ').title()}")
+            except Exception as e:
+                messagebox.showerror("Clipboard Error", f"Failed to copy to clipboard: {str(e)}")
+        else:
+            messagebox.showerror("Error", f"Could not generate PowerShell command for action: {action}")
+
     
 
     
@@ -691,6 +934,8 @@ class RustControllerGUI:
             return
         
         try:
+            self.log_message("Starting API server...")
+            
             # Start the server in a separate process
             self.server_process = subprocess.Popen(
                 [sys.executable, "app.py"],
@@ -698,21 +943,79 @@ class RustControllerGUI:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
+                cwd=os.path.dirname(os.path.abspath(__file__))  # Set working directory to script location
             )
             
-            self.server_running = True
+            # Wait a moment for the server to start
+            time.sleep(2)
             
-            # Update GUI if it's ready
-            if hasattr(self, 'root') and self.root:
-                self.root.after_idle(self._update_server_status, "Running")
-            
-            self.log_message("Server started successfully")
+            # Check if the server is actually running
+            if self.server_process.poll() is None:  # Process is still running
+                self.server_running = True
+                
+                # Update GUI if it's ready
+                if hasattr(self, 'root') and self.root:
+                    self.root.after_idle(lambda: self._update_server_status("Running"))
+                
+                self.log_message("✅ API server started successfully on http://localhost:5000")
+                
+                # Start monitoring server output in background
+                self.server_monitor_thread = threading.Thread(target=self._monitor_server_output, daemon=True)
+                self.server_monitor_thread.start()
+            else:
+                # Server failed to start - capture output to see what went wrong
+                self.log_message("❌ Server failed to start")
+                try:
+                    # Read any output from the failed process
+                    output, _ = self.server_process.communicate(timeout=1)
+                    if output:
+                        self.log_message(f"Server output: {output}")
+                except:
+                    pass
+                if hasattr(self, 'root') and self.root:
+                    self.root.after_idle(lambda: messagebox.showerror("Error", "Server failed to start. Check logs for details."))
             
         except Exception as e:
-            self.log_message(f"Failed to start server: {e}")
+            self.log_message(f"❌ Failed to start server: {e}")
             if hasattr(self, 'root') and self.root:
                 self.root.after_idle(lambda: messagebox.showerror("Error", f"Failed to start server: {e}"))
+    
+    def wait_for_server_ready(self):
+        """Wait for the server to be fully ready and responding"""
+        self.log_message("Waiting for server to be ready...")
+        max_attempts = 30  # Wait up to 30 seconds
+        attempt = 0
+        
+        while attempt < max_attempts:
+            try:
+                import requests
+                response = requests.get("http://localhost:5000/health", timeout=2)
+                if response.status_code == 200:
+                    self.log_message("✅ Server is ready and responding")
+                    return True
+            except:
+                pass
+            
+            attempt += 1
+            time.sleep(1)
+            if attempt % 5 == 0:  # Log every 5 seconds
+                self.log_message(f"Still waiting for server... ({attempt}s)")
+        
+        self.log_message("❌ Server failed to become ready within timeout")
+        return False
+    
+    def _test_server_health(self):
+        """Test if the server is responding"""
+        try:
+            import requests
+            response = requests.get("http://localhost:5000/health", timeout=5)
+            if response.status_code == 200:
+                self.log_message("✅ Server health check passed")
+            else:
+                self.log_message(f"⚠️ Server health check failed: {response.status_code}")
+        except Exception as e:
+            self.log_message(f"⚠️ Server health check failed: {e}")
     
     def _update_server_status(self, status):
         """Update server status in GUI (called from main thread)"""
@@ -737,7 +1040,7 @@ class RustControllerGUI:
             
             # Update GUI if it's ready
             if hasattr(self, 'root') and self.root:
-                self.root.after_idle(self._update_server_status, "Stopped")
+                self.root.after_idle(lambda: self._update_server_status("Stopped"))
             
             self.log_message("Server stopped")
             
@@ -745,6 +1048,21 @@ class RustControllerGUI:
             self.log_message(f"Failed to stop server: {e}")
             if hasattr(self, 'root') and self.root:
                 self.root.after_idle(lambda: messagebox.showerror("Error", f"Failed to stop server: {e}"))
+    
+    def _monitor_server_output(self):
+        """Monitor server process output in background thread"""
+        if not self.server_process:
+            return
+        
+        try:
+            for line in iter(self.server_process.stdout.readline, ''):
+                if line:
+                    # Use after_idle to update GUI from main thread
+                    if hasattr(self, 'root') and self.root:
+                        self.root.after_idle(lambda l=line: self.log_message(l.strip()))
+        except Exception as e:
+            if hasattr(self, 'root') and self.root:
+                self.root.after_idle(lambda: self.log_message(f"Error monitoring server output: {e}"))
     
     def monitor_server_output(self):
         """Monitor server process output"""
@@ -774,26 +1092,33 @@ class RustControllerGUI:
     def monitor_logs(self):
         """Monitor log queue and update GUI"""
         try:
+            # Process all available messages at once
+            messages = []
             while True:
                 try:
                     message = self.log_queue.get_nowait()
-                    self.log_text.insert(tk.END, message + "\n")
-                    
-                    if self.auto_scroll_var.get():
-                        self.log_text.see(tk.END)
-                    
-                    # Limit log size
-                    lines = self.log_text.get("1.0", tk.END).split("\n")
-                    if len(lines) > 1000:
-                        self.log_text.delete("1.0", "500.0")
-                        
+                    messages.append(message)
                 except queue.Empty:
                     break
+            
+            # Update GUI with all messages at once
+            if messages:
+                combined_message = '\n'.join(messages) + '\n'
+                self.log_text.insert(tk.END, combined_message)
+                
+                if self.auto_scroll_var.get():
+                    self.log_text.see(tk.END)
+                
+                # Limit log size (only check occasionally)
+                lines = self.log_text.get("1.0", tk.END).split("\n")
+                if len(lines) > 1000:
+                    self.log_text.delete("1.0", "500.0")
+                    
         except Exception as e:
             print(f"Error monitoring logs: {e}")
         
-        # Schedule next check
-        self.root.after(100, self.monitor_logs)
+        # Schedule next check (further reduced frequency)
+        self.root.after(1000, self.monitor_logs)
     
     def clear_logs(self):
         """Clear the log display"""
@@ -818,34 +1143,10 @@ class RustControllerGUI:
             self.log_message(f"Failed to save logs: {e}")
             messagebox.showerror("Error", f"Failed to save logs: {e}")
     
-    def update_database_stats(self):
-        """Update database statistics display"""
-        try:
-            import requests
-            response = requests.get("http://localhost:5000/steam/stats", timeout=2)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success'):
-                    stats = data.get('stats', {})
-                    item_count = stats.get('itemCount', 0)
-                    last_updated = stats.get('lastUpdated', '')
-                    if last_updated:
-                        # Format the date nicely
-                        try:
-                            from datetime import datetime
-                            dt = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
-                            date_str = dt.strftime('%Y-%m-%d %H:%M')
-                            self.db_stats_var.set(f"Database: {item_count} items (Updated: {date_str})")
-                        except:
-                            self.db_stats_var.set(f"Database: {item_count} items")
-                    else:
-                        self.db_stats_var.set(f"Database: {item_count} items")
-                else:
-                    self.db_stats_var.set("Database: No data available")
-            else:
-                self.db_stats_var.set("Database: Server not responding")
-        except Exception as e:
-            self.db_stats_var.set("Database: Not connected")
+    def _update_db_stats_display(self, text):
+        """Update database stats display (called from main thread)"""
+        if hasattr(self, 'db_stats_var'):
+            self.db_stats_var.set(text)
     
     def check_startup_enabled(self):
         """Check if the app is enabled to start with Windows"""
@@ -1010,7 +1311,8 @@ class RustControllerGUI:
             self.progress_label_var.set(f"Update complete: {result['message']}")
             messagebox.showinfo("Success", f"Database updated successfully!\n{result['message']}")
             # Refresh database stats
-            self.update_database_stats()
+            stats_data = self._fetch_database_stats()
+            self._update_db_stats_display(stats_data)
         else:
             if result.get("requireSteamLogin"):
                 self.progress_label_var.set("Steam login required")

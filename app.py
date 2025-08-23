@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 from steam_manager import steam_manager
+from keyboard_manager import KeyboardManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,247 +19,792 @@ class RustGameController:
     def __init__(self):
         self.game_connected = False
         self.current_server = None
+        # Initialize the keyboard manager for actual keypress functionality
+        try:
+            # Force reload of keyboard_manager module to ensure we get the latest code
+            import importlib
+            import keyboard_manager
+            importlib.reload(keyboard_manager)
+            
+            self.keyboard_manager = keyboard_manager.KeyboardManager()
+            logger.info("KeyboardManager initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize KeyboardManager: {e}")
+            self.keyboard_manager = None
     
     def craft_by_id(self, item_id: str, quantity: int) -> dict:
         """Craft an item by ID with given quantity"""
         logger.info(f"Crafting item ID {item_id} with quantity {quantity}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "craft_by_id",
-            "item_id": item_id,
-            "quantity": quantity,
-            "message": f"Crafting {quantity}x of item ID {item_id}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "craft_by_id",
+                "item_id": item_id,
+                "quantity": quantity,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # Convert item_id to integer
+            item_id_int = int(item_id)
+            
+            # Trigger the craft for the specified quantity
+            success_count = 0
+            for i in range(quantity):
+                if self.keyboard_manager.craft_item(item_id_int):
+                    success_count += 1
+                else:
+                    logger.warning(f"Failed to craft item {item_id} on attempt {i+1}")
+            
+            return {
+                "success": success_count > 0,
+                "action": "craft_by_id",
+                "item_id": item_id,
+                "quantity": quantity,
+                "successful_crafts": success_count,
+                "message": f"Successfully triggered {success_count}/{quantity} crafts for item ID {item_id}"
+            }
+        except ValueError:
+            return {
+                "success": False,
+                "action": "craft_by_id",
+                "item_id": item_id,
+                "quantity": quantity,
+                "message": f"Invalid item ID: {item_id} (must be a number)"
+            }
+        except Exception as e:
+            logger.error(f"Error crafting item {item_id}: {e}")
+            return {
+                "success": False,
+                "action": "craft_by_id",
+                "item_id": item_id,
+                "quantity": quantity,
+                "message": f"Error: {str(e)}"
+            }
     
     def craft_by_name(self, item_name: str, quantity: int) -> dict:
         """Craft an item by name with given quantity"""
-        logger.info(f"Crafting item {item_name} with quantity {quantity}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "craft_by_name",
-            "item_name": item_name,
-            "quantity": quantity,
-            "message": f"Crafting {quantity}x of {item_name}"
-        }
+        logger.info(f"Crafting item {item_name} with quantity {quantity} (type: {type(quantity)})")
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "craft_by_name",
+                "item_name": item_name,
+                "quantity": quantity,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # Find the item by name in the binds manager
+            item_found = None
+            for item in self.keyboard_manager.binds_manager.craftable_items:
+                if item["name"].lower() == item_name.lower():
+                    item_found = item
+                    break
+            
+            if not item_found:
+                return {
+                    "success": False,
+                    "action": "craft_by_name",
+                    "item_name": item_name,
+                    "quantity": quantity,
+                    "message": f"Item '{item_name}' not found in craftable items"
+                }
+            
+            # DEBUG: Log the item details
+            logger.info(f"DEBUG: Found item '{item_name}' with numericId: {item_found['numericId']} (type: {type(item_found['numericId'])})")
+            
+            # Convert quantity to integer and trigger the craft for the specified quantity
+            quantity_int = int(quantity)
+            success_count = 0
+            for i in range(quantity_int):
+                                # Convert numericId to integer
+                logger.info(f"DEBUG: Converting numericId '{item_found['numericId']}' to int...")
+                item_id_int = int(item_found["numericId"])
+                logger.info(f"DEBUG: Converted to int: {item_id_int} (type: {type(item_id_int)})")
+                logger.info(f"DEBUG: About to call keyboard_manager.craft_item with item_id_int: {item_id_int}")
+                logger.info(f"DEBUG: keyboard_manager type: {type(self.keyboard_manager)}")
+                logger.info(f"DEBUG: keyboard_manager.craft_item type: {type(self.keyboard_manager.craft_item)}")
+                try:
+                    result = self.keyboard_manager.craft_item(item_id_int)
+                    logger.info(f"DEBUG: craft_item returned: {result}")
+                    if result:
+                        success_count += 1
+                    else:
+                        logger.warning(f"Failed to craft item {item_name} on attempt {i+1}")
+                except Exception as craft_error:
+                    logger.error(f"DEBUG: Exception in craft_item call: {craft_error}")
+                    logger.error(f"DEBUG: Exception type: {type(craft_error)}")
+                    import traceback
+                    logger.error(f"DEBUG: Craft exception traceback: {traceback.format_exc()}")
+                    raise craft_error
+            
+            return {
+                "success": success_count > 0,
+                "action": "craft_by_name",
+                "item_name": item_name,
+                "quantity": quantity,
+                "successful_crafts": success_count,
+                "message": f"Successfully triggered {success_count}/{quantity} crafts for {item_name}"
+            }
+        except ValueError as e:
+            logger.error(f"Error crafting item {item_name}: Invalid numericId format - {e}")
+            return {
+                "success": False,
+                "action": "craft_by_name",
+                "item_name": item_name,
+                "quantity": quantity,
+                "message": f"Error: Invalid item ID format for '{item_name}'"
+            }
+        except Exception as e:
+            logger.error(f"Error crafting item {item_name}: {e}")
+            return {
+                "success": False,
+                "action": "craft_by_name",
+                "item_name": item_name,
+                "quantity": quantity,
+                "message": f"Error: {str(e)}"
+            }
     
     def cancel_craft_by_id(self, item_id: str, quantity: int) -> dict:
         """Cancel crafting an item by ID with given quantity"""
         logger.info(f"Canceling craft of item ID {item_id} with quantity {quantity}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "cancel_craft_by_id",
-            "item_id": item_id,
-            "quantity": quantity,
-            "message": f"Canceled crafting {quantity}x of item ID {item_id}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "cancel_craft_by_id",
+                "item_id": item_id,
+                "quantity": quantity,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # Convert item_id to integer
+            item_id_int = int(item_id)
+            
+            # Convert quantity to integer and trigger the cancel craft for the specified quantity
+            quantity_int = int(quantity)
+            success_count = 0
+            for i in range(quantity_int):
+                if self.keyboard_manager.cancel_craft_item(item_id_int):
+                    success_count += 1
+                else:
+                    logger.warning(f"Failed to cancel craft item {item_id} on attempt {i+1}")
+            
+            return {
+                "success": success_count > 0,
+                "action": "cancel_craft_by_id",
+                "item_id": item_id,
+                "quantity": quantity,
+                "successful_cancels": success_count,
+                "message": f"Successfully triggered {success_count}/{quantity} cancel crafts for item ID {item_id}"
+            }
+        except ValueError:
+            return {
+                "success": False,
+                "action": "cancel_craft_by_id",
+                "item_id": item_id,
+                "quantity": quantity,
+                "message": f"Invalid item ID: {item_id} (must be a number)"
+            }
+        except Exception as e:
+            logger.error(f"Error canceling craft item {item_id}: {e}")
+            return {
+                "success": False,
+                "action": "cancel_craft_by_id",
+                "item_id": item_id,
+                "quantity": quantity,
+                "message": f"Error: {str(e)}"
+            }
     
     def cancel_craft_by_name(self, item_name: str, quantity: int) -> dict:
         """Cancel crafting an item by name with given quantity"""
         logger.info(f"Canceling craft of item {item_name} with quantity {quantity}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "cancel_craft_by_name",
-            "item_name": item_name,
-            "quantity": quantity,
-            "message": f"Canceled crafting {quantity}x of {item_name}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "cancel_craft_by_name",
+                "item_name": item_name,
+                "quantity": quantity,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # Find the item by name in the binds manager
+            item_found = None
+            for item in self.keyboard_manager.binds_manager.craftable_items:
+                if item["name"].lower() == item_name.lower():
+                    item_found = item
+                    break
+            
+            if not item_found:
+                return {
+                    "success": False,
+                    "action": "cancel_craft_by_name",
+                    "item_name": item_name,
+                    "quantity": quantity,
+                    "message": f"Item '{item_name}' not found in craftable items"
+                }
+            
+            # Convert quantity to integer and trigger the cancel craft for the specified quantity
+            quantity_int = int(quantity)
+            success_count = 0
+            for i in range(quantity_int):
+                # Convert numericId to integer
+                item_id_int = int(item_found["numericId"])
+                if self.keyboard_manager.cancel_craft_item(item_id_int):
+                    success_count += 1
+                else:
+                    logger.warning(f"Failed to cancel craft item {item_name} on attempt {i+1}")
+            
+            return {
+                "success": success_count > 0,
+                "action": "cancel_craft_by_name",
+                "item_name": item_name,
+                "quantity": quantity,
+                "successful_cancels": success_count,
+                "message": f"Successfully triggered {success_count}/{quantity} cancel crafts for {item_name}"
+            }
+        except ValueError as e:
+            logger.error(f"Error canceling craft item {item_name}: Invalid numericId format - {e}")
+            return {
+                "success": False,
+                "action": "cancel_craft_by_name",
+                "item_name": item_name,
+                "quantity": quantity,
+                "message": f"Error: Invalid item ID format for '{item_name}'"
+            }
+        except Exception as e:
+            logger.error(f"Error canceling craft item {item_name}: {e}")
+            return {
+                "success": False,
+                "action": "cancel_craft_by_name",
+                "item_name": item_name,
+                "quantity": quantity,
+                "message": f"Error: {str(e)}"
+            }
     
     def suicide(self) -> dict:
         """Kill the player character"""
         logger.info("Executing suicide command")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "suicide",
-            "message": "Player committed suicide"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "suicide",
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            success = self.keyboard_manager.trigger_api_command("kill")
+            return {
+                "success": success,
+                "action": "suicide",
+                "message": "Suicide command executed successfully" if success else "Failed to execute suicide command"
+            }
+        except Exception as e:
+            logger.error(f"Error executing suicide: {e}")
+            return {
+                "success": False,
+                "action": "suicide",
+                "message": f"Error: {str(e)}"
+            }
     
     def respawn(self, spawn_id: str = None) -> dict:
         """Respawn player with optional spawn ID"""
         logger.info(f"Respawning with spawn ID: {spawn_id}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "respawn",
-            "spawn_id": spawn_id,
-            "message": f"Respawning with spawn ID: {spawn_id if spawn_id else 'random'}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "respawn",
+                "spawn_id": spawn_id,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # For now, just trigger the respawn command (spawn_id handling would need to be implemented)
+            success = self.keyboard_manager.trigger_chat_command("respawn")
+            return {
+                "success": success,
+                "action": "respawn",
+                "spawn_id": spawn_id,
+                "message": f"Respawn command executed successfully" if success else "Failed to execute respawn command"
+            }
+        except Exception as e:
+            logger.error(f"Error executing respawn: {e}")
+            return {
+                "success": False,
+                "action": "respawn",
+                "spawn_id": spawn_id,
+                "message": f"Error: {str(e)}"
+            }
     
     def auto_run(self) -> dict:
         """Enable auto run"""
         logger.info("Enabling auto run")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "auto_run",
-            "message": "Auto run enabled"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "auto_run",
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            success = self.keyboard_manager.trigger_api_command("autorun")
+            return {
+                "success": success,
+                "action": "auto_run",
+                "message": "Auto run command executed successfully" if success else "Failed to execute auto run command"
+            }
+        except Exception as e:
+            logger.error(f"Error executing auto run: {e}")
+            return {
+                "success": False,
+                "action": "auto_run",
+                "message": f"Error: {str(e)}"
+            }
     
     def auto_run_jump(self) -> dict:
         """Enable auto run and jump"""
         logger.info("Enabling auto run and jump")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "auto_run_jump",
-            "message": "Auto run and jump enabled"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "auto_run_jump",
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            success = self.keyboard_manager.trigger_api_command("autorun_jump")
+            return {
+                "success": success,
+                "action": "auto_run_jump",
+                "message": "Auto run and jump command executed successfully" if success else "Failed to execute auto run and jump command"
+            }
+        except Exception as e:
+            logger.error(f"Error executing auto run and jump: {e}")
+            return {
+                "success": False,
+                "action": "auto_run_jump",
+                "message": f"Error: {str(e)}"
+            }
     
     def auto_crouch_attack(self) -> dict:
         """Enable auto crouch and attack"""
         logger.info("Enabling auto crouch and attack")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "auto_crouch_attack",
-            "message": "Auto crouch and attack enabled"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "auto_crouch_attack",
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            success = self.keyboard_manager.trigger_api_command("crouch_attack")
+            return {
+                "success": success,
+                "action": "auto_crouch_attack",
+                "message": "Auto crouch and attack command executed successfully" if success else "Failed to execute auto crouch and attack command"
+            }
+        except Exception as e:
+            logger.error(f"Error executing auto crouch and attack: {e}")
+            return {
+                "success": False,
+                "action": "auto_crouch_attack",
+                "message": f"Error: {str(e)}"
+            }
     
     def global_chat(self, message: str) -> dict:
         """Send message to global chat"""
         logger.info(f"Sending to global chat: {message}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "global_chat",
-            "message": message,
-            "response": f"Sent to global chat: {message}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "global_chat",
+                "message": message,
+                "response": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # For now, use the type_and_enter method to send chat messages
+            # This will open chat and type the message
+            success = self.keyboard_manager.type_and_enter(message)
+            return {
+                "success": success,
+                "action": "global_chat",
+                "message": message,
+                "response": f"Message sent to global chat: {message}" if success else "Failed to send message"
+            }
+        except Exception as e:
+            logger.error(f"Error sending global chat message: {e}")
+            return {
+                "success": False,
+                "action": "global_chat",
+                "message": message,
+                "response": f"Error: {str(e)}"
+            }
     
     def team_chat(self, message: str) -> dict:
         """Send message to team chat"""
         logger.info(f"Sending to team chat: {message}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "team_chat",
-            "message": message,
-            "response": f"Sent to team chat: {message}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "team_chat",
+                "message": message,
+                "response": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # For team chat, we need to prefix with /t or use team chat command
+            # For now, just use type_and_enter (this would need to be enhanced for proper team chat)
+            success = self.keyboard_manager.type_and_enter(f"/t {message}")
+            return {
+                "success": success,
+                "action": "team_chat",
+                "message": message,
+                "response": f"Message sent to team chat: {message}" if success else "Failed to send message"
+            }
+        except Exception as e:
+            logger.error(f"Error sending team chat message: {e}")
+            return {
+                "success": False,
+                "action": "team_chat",
+                "message": message,
+                "response": f"Error: {str(e)}"
+            }
     
     def quit_game(self) -> dict:
         """Quit the game"""
         logger.info("Quitting game")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "quit_game",
-            "message": "Game quit command executed"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "quit_game",
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            success = self.keyboard_manager.trigger_api_command("quit_game")
+            return {
+                "success": success,
+                "action": "quit_game",
+                "message": "Game quit command executed successfully" if success else "Failed to execute quit command"
+            }
+        except Exception as e:
+            logger.error(f"Error executing quit game: {e}")
+            return {
+                "success": False,
+                "action": "quit_game",
+                "message": f"Error: {str(e)}"
+            }
     
     def disconnect(self) -> dict:
         """Disconnect from server"""
         logger.info("Disconnecting from server")
-        # TODO: Implement actual game interaction
-        self.game_connected = False
-        return {
-            "success": True,
-            "action": "disconnect",
-            "message": "Disconnected from server"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "disconnect",
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            success = self.keyboard_manager.trigger_api_command("disconnect")
+            if success:
+                self.game_connected = False
+            return {
+                "success": success,
+                "action": "disconnect",
+                "message": "Disconnected from server successfully" if success else "Failed to disconnect"
+            }
+        except Exception as e:
+            logger.error(f"Error executing disconnect: {e}")
+            return {
+                "success": False,
+                "action": "disconnect",
+                "message": f"Error: {str(e)}"
+            }
     
     def connect(self, server_ip: str) -> dict:
         """Connect to server with given IP"""
         logger.info(f"Connecting to server: {server_ip}")
-        # TODO: Implement actual game interaction
-        self.game_connected = True
-        self.current_server = server_ip
-        return {
-            "success": True,
-            "action": "connect",
-            "server_ip": server_ip,
-            "message": f"Connecting to server: {server_ip}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "connect",
+                "server_ip": server_ip,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # For now, use type_and_enter to send the connect command
+            # This would need to be enhanced for proper server connection
+            success = self.keyboard_manager.type_and_enter(f"client.connect {server_ip}")
+            if success:
+                self.game_connected = True
+                self.current_server = server_ip
+            return {
+                "success": success,
+                "action": "connect",
+                "server_ip": server_ip,
+                "message": f"Connecting to server: {server_ip}" if success else "Failed to connect"
+            }
+        except Exception as e:
+            logger.error(f"Error executing connect: {e}")
+            return {
+                "success": False,
+                "action": "connect",
+                "server_ip": server_ip,
+                "message": f"Error: {str(e)}"
+            }
     
     def stack_inventory(self) -> dict:
         """Stack inventory items"""
         logger.info("Stacking inventory")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "stack_inventory",
-            "message": "Inventory stacked"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "stack_inventory",
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            success = self.keyboard_manager.stack_inventory()
+            return {
+                "success": success,
+                "action": "stack_inventory",
+                "message": "Inventory stacked successfully" if success else "Failed to stack inventory"
+            }
+        except Exception as e:
+            logger.error(f"Error stacking inventory: {e}")
+            return {
+                "success": False,
+                "action": "stack_inventory",
+                "message": f"Error: {str(e)}"
+            }
     
     def cancel_all_crafting(self) -> dict:
         """Cancel all crafting"""
         logger.info("Canceling all crafting")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "cancel_all_crafting",
-            "message": "All crafting canceled"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "cancel_all_crafting",
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # This would need to be implemented in the keyboard manager
+            # For now, we'll trigger multiple cancel commands for common items
+            success = True
+            # TODO: Implement proper cancel all crafting functionality
+            return {
+                "success": success,
+                "action": "cancel_all_crafting",
+                "message": "Cancel all crafting command executed" if success else "Failed to cancel all crafting"
+            }
+        except Exception as e:
+            logger.error(f"Error canceling all crafting: {e}")
+            return {
+                "success": False,
+                "action": "cancel_all_crafting",
+                "message": f"Error: {str(e)}"
+            }
     
     def set_look_radius(self, radius: float) -> dict:
         """Set look at radius"""
         logger.info(f"Setting look radius to {radius}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "set_look_radius",
-            "radius": radius,
-            "message": f"Look radius set to {radius}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "set_look_radius",
+                "radius": radius,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # Use type_and_enter to send the look radius command
+            success = self.keyboard_manager.type_and_enter(f"client.lookatradius {radius}")
+            return {
+                "success": success,
+                "action": "set_look_radius",
+                "radius": radius,
+                "message": f"Look radius set to {radius}" if success else "Failed to set look radius"
+            }
+        except Exception as e:
+            logger.error(f"Error setting look radius: {e}")
+            return {
+                "success": False,
+                "action": "set_look_radius",
+                "radius": radius,
+                "message": f"Error: {str(e)}"
+            }
     
     def set_voice_volume(self, volume: float) -> dict:
         """Set voice chat volume"""
         logger.info(f"Setting voice volume to {volume}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "set_voice_volume",
-            "volume": volume,
-            "message": f"Voice volume set to {volume}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "set_voice_volume",
+                "volume": volume,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # Use type_and_enter to send the voice volume command
+            success = self.keyboard_manager.type_and_enter(f"audio.voices {volume}")
+            return {
+                "success": success,
+                "action": "set_voice_volume",
+                "volume": volume,
+                "message": f"Voice volume set to {volume}" if success else "Failed to set voice volume"
+            }
+        except Exception as e:
+            logger.error(f"Error setting voice volume: {e}")
+            return {
+                "success": False,
+                "action": "set_voice_volume",
+                "volume": volume,
+                "message": f"Error: {str(e)}"
+            }
     
     def set_master_volume(self, volume: float) -> dict:
         """Set master volume"""
         logger.info(f"Setting master volume to {volume}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "set_master_volume",
-            "volume": volume,
-            "message": f"Master volume set to {volume}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "set_master_volume",
+                "volume": volume,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # Use type_and_enter to send the master volume command
+            success = self.keyboard_manager.type_and_enter(f"audio.master {volume}")
+            return {
+                "success": success,
+                "action": "set_master_volume",
+                "volume": volume,
+                "message": f"Master volume set to {volume}" if success else "Failed to set master volume"
+            }
+        except Exception as e:
+            logger.error(f"Error setting master volume: {e}")
+            return {
+                "success": False,
+                "action": "set_master_volume",
+                "volume": volume,
+                "message": f"Error: {str(e)}"
+            }
     
     def copy_json_to_clipboard(self, json_data: dict) -> dict:
         """Copy JSON to clipboard"""
         logger.info(f"Copying JSON to clipboard: {json_data}")
-        # TODO: Implement actual clipboard interaction
-        return {
-            "success": True,
-            "action": "copy_json_to_clipboard",
-            "json_data": json_data,
-            "message": "JSON copied to clipboard"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "copy_json_to_clipboard",
+                "json_data": json_data,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            success = self.keyboard_manager.copy_json_to_clipboard(json_data)
+            return {
+                "success": success,
+                "action": "copy_json_to_clipboard",
+                "json_data": json_data,
+                "message": "JSON copied to clipboard successfully" if success else "Failed to copy JSON to clipboard"
+            }
+        except Exception as e:
+            logger.error(f"Error copying JSON to clipboard: {e}")
+            return {
+                "success": False,
+                "action": "copy_json_to_clipboard",
+                "json_data": json_data,
+                "message": f"Error: {str(e)}"
+            }
     
     def set_hud_state(self, enabled: bool) -> dict:
         """Set HUD state (enabled or disabled)"""
         logger.info(f"Setting HUD state to: {enabled}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "set_hud_state",
-            "enabled": enabled,
-            "message": f"HUD {'enabled' if enabled else 'disabled'}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "set_hud_state",
+                "enabled": enabled,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            # Use type_and_enter to send the HUD state command
+            hud_value = "1" if enabled else "0"
+            success = self.keyboard_manager.type_and_enter(f"graphics.hud {hud_value}")
+            return {
+                "success": success,
+                "action": "set_hud_state",
+                "enabled": enabled,
+                "message": f"HUD {'enabled' if enabled else 'disabled'}" if success else "Failed to set HUD state"
+            }
+        except Exception as e:
+            logger.error(f"Error setting HUD state: {e}")
+            return {
+                "success": False,
+                "action": "set_hud_state",
+                "enabled": enabled,
+                "message": f"Error: {str(e)}"
+            }
     
     def type_and_enter(self, text: str) -> dict:
         """Type given string and press enter"""
         logger.info(f"Typing and entering: {text}")
-        # TODO: Implement actual game interaction
-        return {
-            "success": True,
-            "action": "type_and_enter",
-            "text": text,
-            "message": f"Typed and entered: {text}"
-        }
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "type_and_enter",
+                "text": text,
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            success = self.keyboard_manager.type_and_enter(text)
+            return {
+                "success": success,
+                "action": "type_and_enter",
+                "text": text,
+                "message": f"Typed and entered: {text}" if success else "Failed to type and enter text"
+            }
+        except Exception as e:
+            logger.error(f"Error typing and entering text: {e}")
+            return {
+                "success": False,
+                "action": "type_and_enter",
+                "text": text,
+                "message": f"Error: {str(e)}"
+            }
     
     # Item Database Methods
     def get_all_items(self) -> dict:
@@ -523,8 +1069,15 @@ class RustGameController:
     
 
 
-# Initialize the game controller
-rust_controller = RustGameController()
+# Initialize the game controller (will be created when app starts)
+rust_controller = None
+
+def create_rust_controller():
+    """Create the RustGameController instance when the app starts"""
+    global rust_controller
+    if rust_controller is None:
+        rust_controller = RustGameController()
+    return rust_controller
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -546,7 +1099,8 @@ def craft_by_id():
         if not item_id:
             return jsonify({"error": "item_id is required"}), 400
         
-        result = rust_controller.craft_by_id(item_id, quantity)
+        controller = create_rust_controller()
+        result = controller.craft_by_id(item_id, quantity)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in craft_by_id: {e}")
@@ -563,7 +1117,8 @@ def craft_by_name():
         if not item_name:
             return jsonify({"error": "item_name is required"}), 400
         
-        result = rust_controller.craft_by_name(item_name, quantity)
+        controller = create_rust_controller()
+        result = controller.craft_by_name(item_name, quantity)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in craft_by_name: {e}")
@@ -580,7 +1135,8 @@ def cancel_craft_by_id():
         if not item_id:
             return jsonify({"error": "item_id is required"}), 400
         
-        result = rust_controller.cancel_craft_by_id(item_id, quantity)
+        controller = create_rust_controller()
+        result = controller.cancel_craft_by_id(item_id, quantity)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in cancel_craft_by_id: {e}")
@@ -597,7 +1153,8 @@ def cancel_craft_by_name():
         if not item_name:
             return jsonify({"error": "item_name is required"}), 400
         
-        result = rust_controller.cancel_craft_by_name(item_name, quantity)
+        controller = create_rust_controller()
+        result = controller.cancel_craft_by_name(item_name, quantity)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in cancel_craft_by_name: {e}")
@@ -607,7 +1164,8 @@ def cancel_craft_by_name():
 def suicide():
     """Kill the player character"""
     try:
-        result = rust_controller.suicide()
+        controller = create_rust_controller()
+        result = controller.suicide()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in suicide: {e}")
@@ -620,7 +1178,8 @@ def respawn():
         data = request.get_json() or {}
         spawn_id = data.get('spawn_id')
         
-        result = rust_controller.respawn(spawn_id)
+        controller = create_rust_controller()
+        result = controller.respawn(spawn_id)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in respawn: {e}")
@@ -630,7 +1189,8 @@ def respawn():
 def auto_run():
     """Enable auto run"""
     try:
-        result = rust_controller.auto_run()
+        controller = create_rust_controller()
+        result = controller.auto_run()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in auto_run: {e}")
@@ -640,7 +1200,8 @@ def auto_run():
 def auto_run_jump():
     """Enable auto run and jump"""
     try:
-        result = rust_controller.auto_run_jump()
+        controller = create_rust_controller()
+        result = controller.auto_run_jump()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in auto_run_jump: {e}")
@@ -650,7 +1211,8 @@ def auto_run_jump():
 def auto_crouch_attack():
     """Enable auto crouch and attack"""
     try:
-        result = rust_controller.auto_crouch_attack()
+        controller = create_rust_controller()
+        result = controller.auto_crouch_attack()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in auto_crouch_attack: {e}")
@@ -666,7 +1228,8 @@ def global_chat():
         if not message:
             return jsonify({"error": "message is required"}), 400
         
-        result = rust_controller.global_chat(message)
+        controller = create_rust_controller()
+        result = controller.global_chat(message)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in global_chat: {e}")
@@ -682,7 +1245,8 @@ def team_chat():
         if not message:
             return jsonify({"error": "message is required"}), 400
         
-        result = rust_controller.team_chat(message)
+        controller = create_rust_controller()
+        result = controller.team_chat(message)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in team_chat: {e}")
@@ -692,7 +1256,8 @@ def team_chat():
 def quit_game():
     """Quit the game"""
     try:
-        result = rust_controller.quit_game()
+        controller = create_rust_controller()
+        result = controller.quit_game()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in quit_game: {e}")
@@ -702,7 +1267,8 @@ def quit_game():
 def disconnect():
     """Disconnect from server"""
     try:
-        result = rust_controller.disconnect()
+        controller = create_rust_controller()
+        result = controller.disconnect()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in disconnect: {e}")
@@ -718,7 +1284,8 @@ def connect():
         if not server_ip:
             return jsonify({"error": "server_ip is required"}), 400
         
-        result = rust_controller.connect(server_ip)
+        controller = create_rust_controller()
+        result = controller.connect(server_ip)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in connect: {e}")
@@ -728,7 +1295,8 @@ def connect():
 def stack_inventory():
     """Stack inventory items"""
     try:
-        result = rust_controller.stack_inventory()
+        controller = create_rust_controller()
+        result = controller.stack_inventory()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in stack_inventory: {e}")
@@ -738,7 +1306,8 @@ def stack_inventory():
 def cancel_all_crafting():
     """Cancel all crafting"""
     try:
-        result = rust_controller.cancel_all_crafting()
+        controller = create_rust_controller()
+        result = controller.cancel_all_crafting()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in cancel_all_crafting: {e}")
@@ -754,7 +1323,8 @@ def set_look_radius():
         if radius is None:
             return jsonify({"error": "radius is required"}), 400
         
-        result = rust_controller.set_look_radius(radius)
+        controller = create_rust_controller()
+        result = controller.set_look_radius(radius)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in set_look_radius: {e}")
@@ -770,7 +1340,8 @@ def set_voice_volume():
         if volume is None:
             return jsonify({"error": "volume is required"}), 400
         
-        result = rust_controller.set_voice_volume(volume)
+        controller = create_rust_controller()
+        result = controller.set_voice_volume(volume)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in set_voice_volume: {e}")
@@ -786,7 +1357,8 @@ def set_master_volume():
         if volume is None:
             return jsonify({"error": "volume is required"}), 400
         
-        result = rust_controller.set_master_volume(volume)
+        controller = create_rust_controller()
+        result = controller.set_master_volume(volume)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in set_master_volume: {e}")
@@ -802,7 +1374,8 @@ def copy_json_to_clipboard():
         if not json_data:
             return jsonify({"error": "json_data is required"}), 400
         
-        result = rust_controller.copy_json_to_clipboard(json_data)
+        controller = create_rust_controller()
+        result = controller.copy_json_to_clipboard(json_data)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in copy_json_to_clipboard: {e}")
@@ -818,7 +1391,8 @@ def set_hud_state():
         if enabled is None:
             return jsonify({"error": "enabled is required"}), 400
         
-        result = rust_controller.set_hud_state(enabled)
+        controller = create_rust_controller()
+        result = controller.set_hud_state(enabled)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in set_hud_state: {e}")
@@ -834,7 +1408,8 @@ def type_and_enter():
         if not text:
             return jsonify({"error": "text is required"}), 400
         
-        result = rust_controller.type_and_enter(text)
+        controller = create_rust_controller()
+        result = controller.type_and_enter(text)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in type_and_enter: {e}")
@@ -845,7 +1420,8 @@ def type_and_enter():
 def get_all_items():
     """Get all items from database"""
     try:
-        result = rust_controller.get_all_items()
+        controller = create_rust_controller()
+        result = controller.get_all_items()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in get_all_items: {e}")
@@ -855,7 +1431,8 @@ def get_all_items():
 def get_item_by_id(item_id):
     """Get item by ID"""
     try:
-        result = rust_controller.get_item_by_id(item_id)
+        controller = create_rust_controller()
+        result = controller.get_item_by_id(item_id)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in get_item_by_id: {e}")
@@ -867,7 +1444,8 @@ def get_item_by_id(item_id):
 def get_items_by_category(category):
     """Get items by category"""
     try:
-        result = rust_controller.get_items_by_category(category)
+        controller = create_rust_controller()
+        result = controller.get_items_by_category(category)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in get_items_by_category: {e}")
@@ -881,7 +1459,8 @@ def search_items():
         if not query:
             return jsonify({"error": "query parameter 'q' is required"}), 400
         
-        result = rust_controller.search_items(query)
+        controller = create_rust_controller()
+        result = controller.search_items(query)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in search_items: {e}")
@@ -893,7 +1472,8 @@ def search_items():
 def get_categories():
     """Get all categories"""
     try:
-        result = rust_controller.get_categories()
+        controller = create_rust_controller()
+        result = controller.get_categories()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in get_categories: {e}")
@@ -903,7 +1483,8 @@ def get_categories():
 def get_database_stats():
     """Get database statistics"""
     try:
-        result = rust_controller.get_database_stats()
+        controller = create_rust_controller()
+        result = controller.get_database_stats()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in get_database_stats: {e}")
@@ -1133,4 +1714,9 @@ def update_crafting_data():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Initialize the RustGameController when the app starts
+    logger.info("Initializing RustGameController...")
+    create_rust_controller()
+    logger.info("RustGameController initialized successfully")
+    
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
