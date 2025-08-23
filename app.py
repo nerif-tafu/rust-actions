@@ -46,7 +46,7 @@ class RustGameController:
                 "item_id": item_id,
                 "quantity": quantity,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Convert item_id to integer
@@ -68,7 +68,7 @@ class RustGameController:
                 "action": "craft_by_id",
                 "item_id": item_id,
                 "quantity": quantity,
-                "message": f"Bulk craft operation {'completed successfully' if success else 'failed'} for item ID {item_id} ({quantity} iterations) in {total_time:.4f}s"
+                "message": f"Bulk craft operation {'completed successfully' if success else 'failed'} for item ID {item_id} ({quantity} items) in {total_time:.4f}s"
             }
         except ValueError:
             total_time = time.time() - api_start
@@ -89,7 +89,7 @@ class RustGameController:
                 "item_id": item_id,
                 "quantity": quantity,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def craft_by_name(self, item_name: str, quantity: int) -> dict:
         """Craft an item by name with given quantity"""
@@ -102,7 +102,7 @@ class RustGameController:
                 "item_name": item_name,
                 "quantity": quantity,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Find the item by name in the binds manager
@@ -136,7 +136,7 @@ class RustGameController:
                 "action": "craft_by_name",
                 "item_name": item_name,
                 "quantity": quantity,
-                "message": f"Bulk craft operation {'completed successfully' if success else 'failed'} for {item_name} ({quantity} iterations)"
+                "message": f"Bulk craft operation {'completed successfully' if success else 'failed'} for {item_name} ({quantity} items)"
             }
         except ValueError as e:
             logger.error(f"Error crafting item {item_name}: Invalid numericId format - {e}")
@@ -155,7 +155,7 @@ class RustGameController:
                 "item_name": item_name,
                 "quantity": quantity,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def cancel_craft_by_id(self, item_id: str, quantity: int) -> dict:
         """Cancel crafting an item by ID with given quantity"""
@@ -168,7 +168,7 @@ class RustGameController:
                 "item_id": item_id,
                 "quantity": quantity,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Convert item_id to integer
@@ -182,7 +182,7 @@ class RustGameController:
                 "action": "cancel_craft_by_id",
                 "item_id": item_id,
                 "quantity": quantity,
-                "message": f"Bulk cancel operation {'completed successfully' if success else 'failed'} for item ID {item_id} ({quantity} iterations)"
+                "message": f"Bulk cancel operation {'completed successfully' if success else 'failed'} for item ID {item_id} ({quantity} items)"
             }
         except ValueError:
             return {
@@ -200,7 +200,7 @@ class RustGameController:
                 "item_id": item_id,
                 "quantity": quantity,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def cancel_craft_by_name(self, item_name: str, quantity: int) -> dict:
         """Cancel crafting an item by name with given quantity"""
@@ -213,7 +213,7 @@ class RustGameController:
                 "item_name": item_name,
                 "quantity": quantity,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Find the item by name in the binds manager
@@ -244,7 +244,7 @@ class RustGameController:
                 "action": "cancel_craft_by_name",
                 "item_name": item_name,
                 "quantity": quantity,
-                "message": f"Bulk cancel operation {'completed successfully' if success else 'failed'} for {item_name} ({quantity} iterations)"
+                "message": f"Bulk cancel operation {'completed successfully' if success else 'failed'} for {item_name} ({quantity} items)"
             }
         except ValueError as e:
             logger.error(f"Error canceling craft item {item_name}: Invalid numericId format - {e}")
@@ -263,7 +263,7 @@ class RustGameController:
                 "item_name": item_name,
                 "quantity": quantity,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def suicide(self) -> dict:
         """Kill the player character"""
@@ -274,7 +274,7 @@ class RustGameController:
                 "success": False,
                 "action": "suicide",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("kill")
@@ -289,7 +289,7 @@ class RustGameController:
                 "success": False,
                 "action": "suicide",
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def respawn(self, spawn_id: str = None) -> dict:
         """Respawn player with optional spawn ID"""
@@ -301,7 +301,7 @@ class RustGameController:
                 "action": "respawn",
                 "spawn_id": spawn_id,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Check if spawn_id has a valid value (not None and not empty string)
@@ -350,7 +350,7 @@ class RustGameController:
                 "success": False,
                 "action": "kill_only",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("kill")
@@ -376,7 +376,7 @@ class RustGameController:
                 "success": False,
                 "action": "respawn_only",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("respawn")
@@ -402,7 +402,7 @@ class RustGameController:
                 "success": False,
                 "action": "respawn_random",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # First kill the player
@@ -434,7 +434,7 @@ class RustGameController:
                 "action": "respawn_bed",
                 "spawn_id": spawn_id,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         if not spawn_id or not str(spawn_id).strip():
             return {
@@ -465,7 +465,7 @@ class RustGameController:
                 "action": "respawn_bed",
                 "spawn_id": spawn_id,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def auto_run(self) -> dict:
         """Enable auto run"""
@@ -476,7 +476,7 @@ class RustGameController:
                 "success": False,
                 "action": "auto_run",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("autorun")
@@ -491,7 +491,7 @@ class RustGameController:
                 "success": False,
                 "action": "auto_run",
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def auto_run_jump(self) -> dict:
         """Enable auto run and jump"""
@@ -502,7 +502,7 @@ class RustGameController:
                 "success": False,
                 "action": "auto_run_jump",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("autorun_jump")
@@ -517,7 +517,7 @@ class RustGameController:
                 "success": False,
                 "action": "auto_run_jump",
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def auto_crouch_attack(self) -> dict:
         """Enable auto crouch and attack"""
@@ -528,7 +528,7 @@ class RustGameController:
                 "success": False,
                 "action": "auto_crouch_attack",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("crouch_attack")
@@ -555,7 +555,7 @@ class RustGameController:
                 "action": "gesture",
                 "gesture_name": gesture_name,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command(f"gesture_{gesture_name}")
@@ -584,7 +584,7 @@ class RustGameController:
                 "action": "noclip_toggle",
                 "enable": enable,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             command_name = "noclip_true" if enable else "noclip_false"
@@ -614,7 +614,7 @@ class RustGameController:
                 "action": "god_mode_toggle",
                 "enable": enable,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             command_name = "global_god_true" if enable else "global_god_false"
@@ -644,7 +644,7 @@ class RustGameController:
                 "action": "set_time",
                 "time_hour": time_hour,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Map time to command names
@@ -687,7 +687,7 @@ class RustGameController:
                 "success": False,
                 "action": "teleport_to_marker",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("teleport2marker")
@@ -713,7 +713,7 @@ class RustGameController:
                 "success": False,
                 "action": "toggle_combat_log",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("combatlog")
@@ -739,7 +739,7 @@ class RustGameController:
                 "success": False,
                 "action": "clear_console",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("console_clear")
@@ -765,7 +765,7 @@ class RustGameController:
                 "success": False,
                 "action": "toggle_console",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("consoletoggle")
@@ -780,7 +780,7 @@ class RustGameController:
                 "success": False,
                 "action": "toggle_console",
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def global_chat(self, message: str) -> dict:
         """Send message to global chat using dynamic binds"""
@@ -792,7 +792,7 @@ class RustGameController:
                 "action": "global_chat",
                 "message": message,
                 "response": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Use dynamic bind system for chat messages
@@ -810,7 +810,7 @@ class RustGameController:
                 "action": "global_chat",
                 "message": message,
                 "response": f"Error: {str(e)}"
-            }
+        }
     
     def team_chat(self, message: str) -> dict:
         """Send message to team chat using dynamic binds"""
@@ -822,7 +822,7 @@ class RustGameController:
                 "action": "team_chat",
                 "message": message,
                 "response": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Use dynamic bind system for team chat messages
@@ -840,7 +840,7 @@ class RustGameController:
                 "action": "team_chat",
                 "message": message,
                 "response": f"Error: {str(e)}"
-            }
+        }
     
     def quit_game(self) -> dict:
         """Quit the game"""
@@ -851,7 +851,7 @@ class RustGameController:
                 "success": False,
                 "action": "quit_game",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("quit_game")
@@ -866,7 +866,7 @@ class RustGameController:
                 "success": False,
                 "action": "quit_game",
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def disconnect(self) -> dict:
         """Disconnect from server"""
@@ -877,24 +877,24 @@ class RustGameController:
                 "success": False,
                 "action": "disconnect",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.trigger_api_command("disconnect")
             if success:
                 self.game_connected = False
-            return {
-                "success": success,
-                "action": "disconnect",
-                "message": "Disconnected from server successfully" if success else "Failed to disconnect"
-            }
+                return {
+                    "success": success,
+                    "action": "disconnect",
+                    "message": "Disconnected from server successfully" if success else "Failed to disconnect"
+                }
         except Exception as e:
             logger.error(f"Error executing disconnect: {e}")
             return {
                 "success": False,
                 "action": "disconnect",
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def connect(self, server_ip: str) -> dict:
         """Connect to server with given IP using dynamic binds"""
@@ -906,7 +906,7 @@ class RustGameController:
                 "action": "connect",
                 "server_ip": server_ip,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Use dynamic bind system for server connection
@@ -914,12 +914,12 @@ class RustGameController:
             if success:
                 self.game_connected = True
                 self.current_server = server_ip
-            return {
-                "success": success,
-                "action": "connect",
-                "server_ip": server_ip,
-                "message": f"Connecting to server: {server_ip}" if success else "Failed to connect"
-            }
+                return {
+                    "success": success,
+                    "action": "connect",
+                    "server_ip": server_ip,
+                    "message": f"Connecting to server: {server_ip}" if success else "Failed to connect"
+                }
         except Exception as e:
             logger.error(f"Error executing connect: {e}")
             return {
@@ -938,7 +938,7 @@ class RustGameController:
                 "success": False,
                 "action": "stack_inventory",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.stack_inventory(iterations=iterations)
@@ -966,17 +966,16 @@ class RustGameController:
                 "success": False,
                 "action": "cancel_all_crafting",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
-            # Use the cancel_stack_inventory method to cancel all crafting
-            # This will cancel the most common crafting items (TC, Wood, Stone)
-            success = self.keyboard_manager.cancel_stack_inventory(iterations=iterations)
+            # Use the static bind for cancel all crafting
+            success = self.keyboard_manager.trigger_api_command("cancel_all_crafting")
             return {
                 "success": success,
                 "action": "cancel_all_crafting",
                 "iterations": iterations,
-                "message": f"All crafting canceled successfully ({iterations} iterations)" if success else f"Failed to cancel all crafting ({iterations} iterations)"
+                "message": f"All crafting canceled successfully" if success else f"Failed to cancel all crafting"
             }
         except Exception as e:
             logger.error(f"Error canceling all crafting: {e}")
@@ -997,7 +996,7 @@ class RustGameController:
                 "action": "toggle_stack_inventory",
                 "enable": enable,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.stack_inventory_continuous(enable)
@@ -1014,7 +1013,7 @@ class RustGameController:
                 "action": "toggle_stack_inventory",
                 "enable": enable,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def set_look_radius(self, radius: float) -> dict:
         """Set look at radius"""
@@ -1026,7 +1025,7 @@ class RustGameController:
                 "action": "set_look_radius",
                 "radius": radius,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Map radius values to bind indices
@@ -1059,7 +1058,7 @@ class RustGameController:
                 "action": "set_look_radius",
                 "radius": radius,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def set_voice_volume(self, volume: float) -> dict:
         """Set voice chat volume"""
@@ -1071,7 +1070,7 @@ class RustGameController:
                 "action": "set_voice_volume",
                 "volume": volume,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Map volume values to bind indices
@@ -1107,7 +1106,7 @@ class RustGameController:
                 "action": "set_voice_volume",
                 "volume": volume,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def set_master_volume(self, volume: float) -> dict:
         """Set master volume"""
@@ -1119,7 +1118,7 @@ class RustGameController:
                 "action": "set_master_volume",
                 "volume": volume,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Map volume values to bind indices
@@ -1155,7 +1154,7 @@ class RustGameController:
                 "action": "set_master_volume",
                 "volume": volume,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def copy_json_to_clipboard(self, json_data: dict) -> dict:
         """Copy JSON to clipboard"""
@@ -1167,7 +1166,7 @@ class RustGameController:
                 "action": "copy_json_to_clipboard",
                 "json_data": json_data,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.copy_json_to_clipboard(json_data)
@@ -1184,7 +1183,7 @@ class RustGameController:
                 "action": "copy_json_to_clipboard",
                 "json_data": json_data,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def set_hud_state(self, enabled: bool) -> dict:
         """Set HUD state (enabled or disabled)"""
@@ -1196,7 +1195,7 @@ class RustGameController:
                 "action": "set_hud_state",
                 "enabled": enabled,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Map HUD state to bind indices
@@ -1229,7 +1228,7 @@ class RustGameController:
                 "action": "set_hud_state",
                 "enabled": enabled,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     def type_and_enter(self, text: str) -> dict:
         """Type given string and press enter"""
@@ -1241,7 +1240,7 @@ class RustGameController:
                 "action": "type_and_enter",
                 "text": text,
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.type_and_enter(text)
@@ -1258,7 +1257,7 @@ class RustGameController:
                 "action": "type_and_enter",
                 "text": text,
                 "message": f"Error: {str(e)}"
-            }
+        }
     
     # Item Database Methods
     def get_all_items(self) -> dict:
@@ -1530,7 +1529,7 @@ class RustGameController:
                 "success": False,
                 "action": "start_anti_afk",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.start_anti_afk()
@@ -1556,7 +1555,7 @@ class RustGameController:
                 "success": False,
                 "action": "stop_anti_afk",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             success = self.keyboard_manager.stop_anti_afk()
@@ -1580,7 +1579,7 @@ class RustGameController:
                 "success": False,
                 "action": "get_anti_afk_status",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             is_running = self.keyboard_manager.is_anti_afk_running()
@@ -1607,7 +1606,7 @@ class RustGameController:
                 "success": False,
                 "action": "reload_binds_manager_dynamic_binds",
                 "message": "KeyboardManager not initialized"
-            }
+                }
         
         try:
             # Reload dynamic binds from keys.cfg

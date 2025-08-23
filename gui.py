@@ -34,6 +34,7 @@ class RustControllerGUI:
         self.server_process = None
         self.log_queue = queue.Queue()
         self.startup_enabled = self.check_startup_enabled()
+        self.start_minimized_enabled = self.check_start_minimized_enabled()
         self.shutdown_event = threading.Event()
         
         # Setup logging
@@ -47,7 +48,7 @@ class RustControllerGUI:
         
         # Start background tasks before GUI
         self.start_background_tasks()
-        
+    
         # Run GUI in main thread (simpler and more reliable)
         self._run_gui()
     
@@ -112,7 +113,22 @@ class RustControllerGUI:
         
         # Set icon if available
         try:
-            self.root.iconbitmap("rust_controller.ico")
+            # Try to use camera.png as icon, convert to ICO if needed
+            if os.path.exists("camera.png"):
+                # Convert PNG to ICO for window icon
+                from PIL import Image
+                img = Image.open("camera.png")
+                # Resize to standard icon size
+                img = img.resize((32, 32), Image.Resampling.LANCZOS)
+                img.save("camera_temp.ico", format='ICO')
+                self.root.iconbitmap("camera_temp.ico")
+                # Clean up temporary file
+                try:
+                    os.remove("camera_temp.ico")
+                except:
+                    pass
+            else:
+                self.root.iconbitmap("rust_controller.ico")
         except:
             pass
         
@@ -125,11 +141,27 @@ class RustControllerGUI:
         # Start log monitoring
         self.monitor_logs()
         
-        # Handle window close
+        # Handle window close and minimize
         self.root.protocol("WM_DELETE_WINDOW", self.minimize_to_tray)
+        
+        # Override minimize button to go to system tray
+        self.root.bind("<Unmap>", self.on_minimize)
+        
+        # Also handle the minimize button directly
+        self.root.bind("<Configure>", self.on_configure)
+        
+        # Add keyboard shortcut for minimize to tray (Alt+M)
+        self.root.bind("<Alt-m>", lambda e: self.minimize_to_tray())
+        self.root.bind("<Alt-M>", lambda e: self.minimize_to_tray())
         
         # Populate dropdowns immediately since server is ready
         self.refresh_item_dropdowns()
+        
+        # Check if we should start minimized (either from command line or saved setting)
+        should_start_minimized = '--minimized' in sys.argv or self.start_minimized_enabled
+        if should_start_minimized:
+            # Small delay to ensure everything is ready, then minimize to tray
+            self.root.after(500, self.minimize_to_tray)
         
 
         
@@ -257,7 +289,14 @@ class RustControllerGUI:
         startup_check = ttk.Checkbutton(status_frame, text="Start with Windows", 
                                        variable=self.startup_var, 
                                        command=self.toggle_startup)
-        startup_check.grid(row=0, column=4, padx=(20, 0))
+        startup_check.grid(row=0, column=4, padx=(20, 5))
+        
+        # Start minimized checkbox
+        self.start_minimized_var = tk.BooleanVar(value=self.start_minimized_enabled)
+        start_minimized_check = ttk.Checkbutton(status_frame, text="Start Minimized", 
+                                               variable=self.start_minimized_var, 
+                                               command=self.toggle_start_minimized)
+        start_minimized_check.grid(row=0, column=5, padx=(0, 0))
         
         # Logs frame (left column)
         logs_frame = ttk.LabelFrame(main_frame, text="Server Logs", padding="5")
@@ -1211,8 +1250,13 @@ class RustControllerGUI:
         """Setup system tray icon and menu"""
         # Create a simple icon (you can replace this with a proper icon file)
         try:
-            # Try to load an icon file
-            self.icon_image = Image.open("rust_controller.ico")
+            # Try to load camera.png first, fallback to rust_controller.ico
+            if os.path.exists("camera.png"):
+                self.icon_image = Image.open("camera.png")
+                # Resize to appropriate size for system tray
+                self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+            else:
+                self.icon_image = Image.open("rust_controller.ico")
         except:
             # Create a simple colored square as fallback
             self.icon_image = Image.new('RGB', (64, 64), color='red')
@@ -1229,7 +1273,7 @@ class RustControllerGUI:
         )
         
         # Create system tray icon
-        self.tray_icon = pystray.Icon("rust_controller", self.icon_image, 
+        self.tray_icon = pystray.Icon("camera_controller", self.icon_image, 
                                      "Rust Game Controller API", menu)
         
         # Start system tray in a separate thread
@@ -1419,7 +1463,7 @@ class RustControllerGUI:
                 lines = self.log_text.get("1.0", tk.END).split("\n")
                 if len(lines) > 1000:
                     self.log_text.delete("1.0", "500.0")
-                    
+                        
         except Exception as e:
             print(f"Error monitoring logs: {e}")
         
@@ -1475,15 +1519,7 @@ class RustControllerGUI:
             
             if self.startup_var.get():
                 # Enable startup
-                app_path = sys.argv[0]
-                if app_path.endswith('.py'):
-                    # If running as script, use python executable
-                    app_path = f'"{sys.executable}" "{app_path}"'
-                else:
-                    # If running as exe
-                    app_path = f'"{app_path}"'
-                
-                winreg.SetValueEx(key, "RustGameController", 0, winreg.REG_SZ, app_path)
+                self.update_startup_command()
                 self.log_message("Startup enabled")
             else:
                 # Disable startup
@@ -1500,6 +1536,94 @@ class RustControllerGUI:
             messagebox.showerror("Error", f"Failed to toggle startup: {e}")
             # Revert checkbox state
             self.startup_var.set(not self.startup_var.get())
+    
+    def update_startup_command(self):
+        """Update the startup command in registry"""
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                               r"Software\Microsoft\Windows\CurrentVersion\Run", 
+                               0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
+            
+            app_path = sys.argv[0]
+            if app_path.endswith('.py'):
+                # If running as script, use python executable
+                app_path = f'"{sys.executable}" "{app_path}"'
+            else:
+                # If running as exe
+                app_path = f'"{app_path}"'
+            
+            # Add start minimized parameter if enabled
+            if self.start_minimized_var.get():
+                app_path += ' --minimized'
+            
+            winreg.SetValueEx(key, "RustGameController", 0, winreg.REG_SZ, app_path)
+            winreg.CloseKey(key)
+            
+        except Exception as e:
+            self.log_message(f"Failed to update startup command: {e}")
+    
+    def check_start_minimized_enabled(self):
+        """Check if the app is set to start minimized"""
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                               r"Software\RustGameController", 
+                               0, winreg.KEY_READ)
+            value, _ = winreg.QueryValueEx(key, "StartMinimized")
+            winreg.CloseKey(key)
+            return bool(value)
+        except FileNotFoundError:
+            # Key doesn't exist, return False
+            return False
+        except:
+            return False
+    
+    def toggle_start_minimized(self):
+        """Toggle start minimized setting"""
+        try:
+            # Create the key if it doesn't exist
+            try:
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                                   r"Software\RustGameController", 
+                                   0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
+            except FileNotFoundError:
+                # Create the key
+                key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, 
+                                     r"Software\RustGameController")
+            
+            if self.start_minimized_var.get():
+                # Enable start minimized
+                winreg.SetValueEx(key, "StartMinimized", 0, winreg.REG_DWORD, 1)
+                self.log_message("Start minimized enabled")
+            else:
+                # Disable start minimized
+                winreg.SetValueEx(key, "StartMinimized", 0, winreg.REG_DWORD, 0)
+                self.log_message("Start minimized disabled")
+            
+            winreg.CloseKey(key)
+            
+            # Update startup command if startup is enabled
+            if self.startup_var.get():
+                self.update_startup_command()
+            
+        except Exception as e:
+            self.log_message(f"Failed to toggle start minimized: {e}")
+            messagebox.showerror("Error", f"Failed to toggle start minimized: {e}")
+            # Revert checkbox state
+            self.start_minimized_var.set(not self.start_minimized_var.get())
+    
+    def on_minimize(self, event=None):
+        """Handle minimize button click"""
+        # Check if the window is being minimized (not just moved or resized)
+        if self.root.state() == 'iconic':
+            self.minimize_to_tray()
+    
+    def on_configure(self, event=None):
+        """Handle window configuration changes"""
+        # Check if window is being minimized
+        if hasattr(self, 'root') and self.root:
+            if self.root.state() == 'iconic':
+                # Small delay to ensure the minimize action is complete
+                self.root.after(100, self.minimize_to_tray)
     
     def minimize_to_tray(self):
         """Minimize window to system tray"""

@@ -12,6 +12,7 @@ A simple Python REST API for controlling actions in the game "Rust". This API pr
 - **Settings**: Control volume, HUD, look radius
 - **Input Simulation**: Type text and press enter
 - **Clipboard Operations**: Copy JSON to clipboard
+- **Chat Feedback**: Automatic chat messages for many actions (anti-AFK, continuous stack, crafting cancellation, etc.)
 
 ## Installation
 
@@ -46,18 +47,30 @@ The API will be available at `http://localhost:5000`
 - **GET** `/health` - Check API health status
 
 ### Crafting
-- **POST** `/craft/id` - Craft item by ID
-- **POST** `/craft/name` - Craft item by name
-- **POST** `/craft/cancel/id` - Cancel craft by item ID
-- **POST** `/craft/cancel/name` - Cancel craft by item name
-- **POST** `/craft/cancel-all` - Cancel all crafting
+- **POST** `/craft/id` - Craft item by ID with quantity
+- **POST** `/craft/name` - Craft item by name with quantity
+- **POST** `/craft/cancel/id` - Cancel craft by item ID with quantity
+- **POST** `/craft/cancel/name` - Cancel craft by item name with quantity
+- **POST** `/craft/cancel-all` - Cancel all crafting (includes chat feedback)
 
 ### Player Actions
 - **POST** `/player/suicide` - Kill player character
-- **POST** `/player/respawn` - Respawn player (optional spawn ID)
+- **POST** `/player/kill` - Kill player character only
+- **POST** `/player/respawn` - Respawn player with optional spawn ID
+- **POST** `/player/respawn-only` - Respawn player only (without killing first)
+- **POST** `/player/respawn-random` - Kill and respawn player (random spawn)
+- **POST** `/player/respawn-bed` - Kill and respawn at specific sleeping bag
 - **POST** `/player/auto-run` - Enable auto run
 - **POST** `/player/auto-run-jump` - Enable auto run and jump
 - **POST** `/player/auto-crouch-attack` - Enable auto crouch and attack
+- **POST** `/player/gesture` - Perform a gesture/emote
+- **POST** `/player/noclip` - Toggle noclip on/off
+- **POST** `/player/god-mode` - Toggle god mode on/off
+- **POST** `/player/set-time` - Set time of day (0, 4, 8, 12, 16, 20, 24)
+- **POST** `/player/teleport-marker` - Teleport to marker
+- **POST** `/player/combat-log` - Toggle combat log
+- **POST** `/player/clear-console` - Clear console
+- **POST** `/player/toggle-console` - Toggle console
 
 ### Chat
 - **POST** `/chat/global` - Send message to global chat
@@ -66,34 +79,41 @@ The API will be available at `http://localhost:5000`
 ### Game Management
 - **POST** `/game/quit` - Quit the game
 - **POST** `/game/disconnect` - Disconnect from server
-- **POST** `/game/connect` - Connect to server
+- **POST** `/game/connect` - Connect to server with IP
 
 ### Inventory
 - **POST** `/inventory/stack` - Stack inventory items
+- **POST** `/inventory/toggle-stack` - Enable/disable continuous stack inventory operations (includes chat feedback)
 
 ### Settings
-- **POST** `/settings/look-radius` - Set look at radius
-- **POST** `/settings/voice-volume` - Set voice chat volume
-- **POST** `/settings/master-volume` - Set master volume
+- **POST** `/settings/look-radius` - Set look at radius (20.0 or 0.0002)
+- **POST** `/settings/voice-volume` - Set voice chat volume (0.0, 0.25, 0.5, 0.75, 1.0)
+- **POST** `/settings/master-volume` - Set master volume (0.0, 0.25, 0.5, 0.75, 1.0)
 - **POST** `/settings/hud` - Set HUD state (enabled/disabled)
 
 ### Input & Clipboard
 - **POST** `/input/type-enter` - Type text and press enter
 - **POST** `/clipboard/copy-json` - Copy JSON to clipboard
 
+### Anti-AFK
+- **POST** `/anti-afk/start` - Start the anti-AFK feature (includes chat feedback)
+- **POST** `/anti-afk/stop` - Stop the anti-AFK feature (includes chat feedback)
+- **GET** `/anti-afk/status` - Get the current anti-AFK status
+
+### Keyboard Manager
+- **GET** `/keyboard-manager/clear-cache` - Clear the keyboard manager's key combination cache
+
+### Binds Manager
+- **GET** `/binds-manager/reload-dynamic-binds` - Reload the binds manager's dynamic binds from keys.cfg
+- **POST** `/binds-manager/regenerate-cleared` - Regenerate all binds with dynamic binds completely cleared
+
 ### Item Database
 - **GET** `/items` - Get all items
 - **GET** `/items/<item_id>` - Get item by ID
-- **GET** `/items/name/<name>` - Get item by name
 - **GET** `/items/category/<category>` - Get items by category
 - **GET** `/items/search?q=<query>` - Search items by name or description
-- **POST** `/items` - Add new item
-- **PUT** `/items/<item_id>` - Update item
-- **DELETE** `/items/<item_id>` - Delete item
 - **GET** `/items/categories` - Get all categories
 - **GET** `/items/stats` - Get database statistics
-- **POST** `/items/load-game-files` - Load items from Rust game files
-- **POST** `/items/import-item-manager` - Import items from item manager data
 
 ### Steam Integration
 - **POST** `/steam/login` - Login to Steam
@@ -103,7 +123,24 @@ The API will be available at `http://localhost:5000`
 - **GET** `/steam/items` - Get all items from Steam database
 - **GET** `/steam/items/<item_id>` - Get item by ID from Steam database
 - **GET** `/steam/stats` - Get Steam database statistics
+- **GET** `/steam/test-installation` - Test SteamCMD installation
 - **GET** `/steam/images/<filename>` - Serve Steam item images
+
+### Steam Crafting Data
+- **GET** `/steam/crafting/recipe/<item_id>` - Get crafting recipe for a specific item
+- **GET** `/steam/crafting/recipes` - Get all crafting recipes
+- **POST** `/steam/update-crafting` - Update crafting data from Unity bundles and merge into item database
+
+## Chat Feedback System
+
+Many API actions automatically send chat feedback messages to inform you when operations are completed. This includes:
+
+- **Anti-AFK**: "Anti-AFK started!" / "Anti-AFK stopped!"
+- **Continuous Stack Inventory**: "Continuous stack inventory enabled!" / "Continuous stack inventory disabled!"
+- **Cancel All Crafting**: "All crafting cancelled!"
+- **Player Actions**: Various feedback messages for auto-run, noclip, god mode, time changes, etc.
+
+These messages are sent using Rust's `chat.add` command and appear in the game's chat interface.
 
 ## Usage Examples
 
@@ -130,6 +167,11 @@ curl -X POST http://localhost:5000/craft/name \
 curl -X POST http://localhost:5000/player/suicide
 ```
 
+**Kill Only:**
+```bash
+curl -X POST http://localhost:5000/player/kill
+```
+
 **Respawn with specific ID:**
 ```bash
 curl -X POST http://localhost:5000/player/respawn \
@@ -137,9 +179,74 @@ curl -X POST http://localhost:5000/player/respawn \
   -d '{"spawn_id": "spawn_point_1"}'
 ```
 
+**Respawn Only (without killing):**
+```bash
+curl -X POST http://localhost:5000/player/respawn-only
+```
+
+**Kill and Respawn Random:**
+```bash
+curl -X POST http://localhost:5000/player/respawn-random
+```
+
+**Kill and Respawn at Bed:**
+```bash
+curl -X POST http://localhost:5000/player/respawn-bed \
+  -H "Content-Type: application/json" \
+  -d '{"spawn_id": "bed_123"}'
+```
+
 **Auto Run:**
 ```bash
 curl -X POST http://localhost:5000/player/auto-run
+```
+
+**Perform Gesture:**
+```bash
+curl -X POST http://localhost:5000/player/gesture \
+  -H "Content-Type: application/json" \
+  -d '{"gesture_name": "wave"}'
+```
+
+**Toggle Noclip:**
+```bash
+curl -X POST http://localhost:5000/player/noclip \
+  -H "Content-Type: application/json" \
+  -d '{"enable": true}'
+```
+
+**Toggle God Mode:**
+```bash
+curl -X POST http://localhost:5000/player/god-mode \
+  -H "Content-Type: application/json" \
+  -d '{"enable": true}'
+```
+
+**Set Time:**
+```bash
+curl -X POST http://localhost:5000/player/set-time \
+  -H "Content-Type: application/json" \
+  -d '{"time_hour": 12}'
+```
+
+**Teleport to Marker:**
+```bash
+curl -X POST http://localhost:5000/player/teleport-marker
+```
+
+**Toggle Combat Log:**
+```bash
+curl -X POST http://localhost:5000/player/combat-log
+```
+
+**Clear Console:**
+```bash
+curl -X POST http://localhost:5000/player/clear-console
+```
+
+**Toggle Console:**
+```bash
+curl -X POST http://localhost:5000/player/toggle-console
 ```
 
 ### Chat Messages
@@ -170,6 +277,56 @@ curl -X POST http://localhost:5000/game/connect \
 **Disconnect:**
 ```bash
 curl -X POST http://localhost:5000/game/disconnect
+```
+
+### Inventory Management
+
+**Stack Inventory:**
+```bash
+curl -X POST http://localhost:5000/inventory/stack \
+  -H "Content-Type: application/json" \
+  -d '{"iterations": 80}'
+```
+
+**Toggle Continuous Stack:**
+```bash
+curl -X POST http://localhost:5000/inventory/toggle-stack \
+  -H "Content-Type: application/json" \
+  -d '{"enable": true}'
+```
+
+### Anti-AFK
+
+**Start Anti-AFK:**
+```bash
+curl -X POST http://localhost:5000/anti-afk/start
+```
+
+**Stop Anti-AFK:**
+```bash
+curl -X POST http://localhost:5000/anti-afk/stop
+```
+
+**Check Anti-AFK Status:**
+```bash
+curl -X GET http://localhost:5000/anti-afk/status
+```
+
+### Binds Management
+
+**Clear Keyboard Manager Cache:**
+```bash
+curl -X GET http://localhost:5000/keyboard-manager/clear-cache
+```
+
+**Reload Dynamic Binds:**
+```bash
+curl -X GET http://localhost:5000/binds-manager/reload-dynamic-binds
+```
+
+**Regenerate All Binds:**
+```bash
+curl -X POST http://localhost:5000/binds-manager/regenerate-cleared
 ```
 
 ### Settings
@@ -339,6 +496,28 @@ curl -X GET http://localhost:5000/steam/items
 **Get Steam Item by ID:**
 ```bash
 curl -X GET http://localhost:5000/steam/items/2063916636
+```
+
+### Steam Crafting Data
+
+**Get Crafting Recipe:**
+```bash
+curl -X GET http://localhost:5000/steam/crafting/recipe/2063916636
+```
+
+**Get All Crafting Recipes:**
+```bash
+curl -X GET http://localhost:5000/steam/crafting/recipes
+```
+
+**Update Crafting Data:**
+```bash
+curl -X POST http://localhost:5000/steam/update-crafting
+```
+
+**Test SteamCMD Installation:**
+```bash
+curl -X GET http://localhost:5000/steam/test-installation
 ```
 
 ## Response Format

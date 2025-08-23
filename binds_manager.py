@@ -54,6 +54,9 @@ class BindsManager:
         # One-time migration from old JSON file to keys.cfg
         self._migrate_dynamic_binds_from_json()
         
+        # Initialize bind mappings for crafting items
+        self._initialize_bind_mappings()
+        
         # File permission management
         self._file_permissions_backup = None
         
@@ -84,6 +87,8 @@ class BindsManager:
                     "name": item_data.get("name", "Unknown"),
                     "shortname": item_data.get("shortname", "unknown")
                 })
+                
+        
         return craftable_items
     
     def _generate_key_combinations(self) -> List[str]:
@@ -96,6 +101,31 @@ class BindsManager:
     def _format_bind_command(self, key_combo: str, command: str) -> str:
         """Format a bind command for the keys.cfg file."""
         return f"bind [{key_combo}] {command}"
+    
+    def _initialize_bind_mappings(self):
+        """Initialize bind mappings for crafting items without generating the full keys.cfg."""
+        print(f"Initializing bind mappings for {len(self.craftable_items)} craftable items...")
+        
+        for i, item in enumerate(self.craftable_items):
+            if i * 2 >= len(self.key_combinations):
+                print(f"Warning: Not enough key combinations for all items. Stopping at item {i}")
+                break
+                
+            item_id = int(item["numericId"])
+            item_name = item["name"]
+            
+
+            
+            # Create bind mapping
+            craft_bind_index = i * 2
+            cancel_bind_index = i * 2 + 1
+            
+            # Track the mapping
+            self.bind_mapping[item_id] = (craft_bind_index, cancel_bind_index)
+            self.used_binds.add(craft_bind_index)
+            self.used_binds.add(cancel_bind_index)
+        
+        print(f"Initialized {len(self.bind_mapping)} bind mappings")
     
     def generate_crafting_binds(self) -> List[str]:
         """Generate crafting binds for all craftable items."""
@@ -163,23 +193,23 @@ class BindsManager:
         api_commands = [
             ("kill", "kill"),
             ("respawn", "respawn"),
-            ("autorun", "forward;sprint"),
-            ("autorun_jump", "forward;sprint;jump"),
-            ("crouch_attack", "attack;duck"),
+            ("autorun", "forward;sprint;chat.add 0 0 \"Auto run enabled!\""),
+            ("autorun_jump", "forward;sprint;jump;chat.add 0 0 \"Auto run and jump enabled!\""),
+            ("crouch_attack", "attack;duck;chat.add 0 0 \"Auto crouch and attack enabled!\""),
             ("quit_game", "quit"),
             ("disconnect", "disconnect"),
-            ("lookat_radius_20", "client.lookatradius 20"),
-            ("lookat_radius_0", "client.lookatradius 0.0002"),
-            ("audio_voices_0", "audio.voices 0"),
-            ("audio_voices_25", "audio.voices 0.25"),
-            ("audio_voices_50", "audio.voices 0.5"),
-            ("audio_voices_75", "audio.voices 0.75"),
-            ("audio_voices_100", "audio.voices 1"),
-            ("audio_master_0", "audio.master 0"),
-            ("audio_master_25", "audio.master 0.25"),
-            ("audio_master_50", "audio.master 0.5"),
-            ("audio_master_75", "audio.master 0.75"),
-            ("audio_master_100", "audio.master 1"),
+            ("lookat_radius_20", "client.lookatradius 20;chat.add 0 0 \"Look radius set to wide (20)\""),
+            ("lookat_radius_0", "client.lookatradius 0.0002;chat.add 0 0 \"Look radius set to narrow (0.0002)\""),
+            ("audio_voices_0", "audio.voices 0;chat.add 0 0 \"Voice volume set to 0%\""),
+            ("audio_voices_25", "audio.voices 0.25;chat.add 0 0 \"Voice volume set to 25%\""),
+            ("audio_voices_50", "audio.voices 0.5;chat.add 0 0 \"Voice volume set to 50%\""),
+            ("audio_voices_75", "audio.voices 0.75;chat.add 0 0 \"Voice volume set to 75%\""),
+            ("audio_voices_100", "audio.voices 1;chat.add 0 0 \"Voice volume set to 100%\""),
+            ("audio_master_0", "audio.master 0;chat.add 0 0 \"Master volume set to 0%\""),
+            ("audio_master_25", "audio.master 0.25;chat.add 0 0 \"Master volume set to 25%\""),
+            ("audio_master_50", "audio.master 0.5;chat.add 0 0 \"Master volume set to 50%\""),
+            ("audio_master_75", "audio.master 0.75;chat.add 0 0 \"Master volume set to 75%\""),
+            ("audio_master_100", "audio.master 1;chat.add 0 0 \"Master volume set to 100%\""),
             ("hud_off", "graphics.hud 0"),
             ("hud_on", "graphics.hud 1"),
             ("gesture_wave", "gesture wave"),
@@ -205,21 +235,26 @@ class BindsManager:
             ("gesture_nono", "gesture nono"),
             ("gesture_knucklescrack", "gesture knucklescrack"),
             ("gesture_rps", "gesture rps"),
-            ("noclip_true", "noclip true"),
-            ("noclip_false", "noclip false"),
-            ("global_god_true", "global.god true"),
-            ("global_god_false", "global.god false"),
-            ("env_time_0", "env.time 0"),
-            ("env_time_4", "env.time 4"),
-            ("env_time_8", "env.time 8"),
-            ("env_time_12", "env.time 12"),
-            ("env_time_16", "env.time 16"),
-            ("env_time_20", "env.time 20"),
-            ("env_time_24", "env.time 24"),
-            ("teleport2marker", "teleport2marker"),
+            ("noclip_true", "noclip true;chat.add 0 0 \"Noclip enabled!\""),
+            ("noclip_false", "noclip false;chat.add 0 0 \"Noclip disabled!\""),
+            ("global_god_true", "global.god true;chat.add 0 0 \"God mode enabled!\""),
+            ("global_god_false", "global.god false;chat.add 0 0 \"God mode disabled!\""),
+            ("env_time_0", "env.time 0;chat.add 0 0 \"Time set to 00:00 (midnight)\""),
+            ("env_time_4", "env.time 4;chat.add 0 0 \"Time set to 04:00 (early morning)\""),
+            ("env_time_8", "env.time 8;chat.add 0 0 \"Time set to 08:00 (morning)\""),
+            ("env_time_12", "env.time 12;chat.add 0 0 \"Time set to 12:00 (noon)\""),
+            ("env_time_16", "env.time 16;chat.add 0 0 \"Time set to 16:00 (afternoon)\""),
+            ("env_time_20", "env.time 20;chat.add 0 0 \"Time set to 20:00 (evening)\""),
+            ("env_time_24", "env.time 24;chat.add 0 0 \"Time set to 24:00 (midnight)\""),
+            ("teleport2marker", "teleport2marker;chat.add 0 0 \"Teleported to marker!\""),
             ("combatlog", "combatlog"),
             ("console_clear", "console.clear"),
             ("consoletoggle", "consoletoggle"),
+            ("chat_continuous_stack_enabled", "chat.add 0 0 \"Continuous stack inventory enabled!\""),
+            ("chat_continuous_stack_disabled", "chat.add 0 0 \"Continuous stack inventory disabled!\""),
+            ("chat_anti_afk_started", "chat.add 0 0 \"Anti-AFK started!\""),
+            ("chat_anti_afk_stopped", "chat.add 0 0 \"Anti-AFK stopped!\""),
+            ("cancel_all_crafting", "craft.cancelall;chat.add 0 0 \"All crafting cancelled!\""),
         ]
         
         print(f"Generating API binds...")
@@ -474,6 +509,25 @@ class BindsManager:
     def get_item_bind_info(self, item_id: int) -> Optional[Tuple[int, int]]:
         """Get the bind indices for a specific item (craft and cancel)."""
         return self.bind_mapping.get(item_id)
+    
+    def get_item_info(self, item_id: int) -> Optional[Dict]:
+        """Get item information including amountToCreate from the database."""
+        try:
+            # Search through the item database for the item
+            for db_item_id, item_data in self.item_database.get("items", {}).items():
+                if item_data.get("numericId") == item_id:
+                    return {
+                        "id": db_item_id,
+                        "numericId": item_data.get("numericId"),
+                        "name": item_data.get("name", "Unknown"),
+                        "shortname": item_data.get("shortname", "unknown"),
+                        "amountToCreate": item_data.get("amountToCreate", 1),
+                        "userCraftable": item_data.get("userCraftable", False)
+                    }
+            return None
+        except Exception as e:
+            logger.error(f"Error getting item info for item_id {item_id}: {e}")
+            return None
     
     def get_key_combo_for_bind(self, bind_index: int) -> Optional[str]:
         """Get the key combination for a specific bind index."""

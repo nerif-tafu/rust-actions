@@ -444,9 +444,10 @@ class KeyboardManager:
             logger.error(f"Error crafting item {item_id}: {e}")
             return False
     
-    def bulk_craft_item(self, item_id: int, iterations: int = 1) -> bool:
-        """Craft an item multiple times rapidly"""
+    def bulk_craft_item(self, item_id: int, quantity: int = 1) -> bool:
+        """Craft an item multiple times rapidly, calculating operations based on amountToCreate"""
         import time
+        import math
         start_time = time.time()
         
         try:
@@ -460,29 +461,46 @@ class KeyboardManager:
             
             craft_bind_index, _ = bind_info
             
-            logger.info(f"Starting bulk craft for item {item_id}: {iterations} iterations")
-            logger.info(f"Bind lookup took: {bind_info_time:.4f}s")
+            # Get item information to calculate correct number of operations
+            item_info_start = time.time()
+            item_info = self.binds_manager.get_item_info(item_id)
+            item_info_time = time.time() - item_info_start
             
-            # Trigger the bind multiple times rapidly
+            if not item_info:
+                logger.warning(f"No item info found for item ID {item_id}, using default amountToCreate=1")
+                amount_to_create = 1
+            else:
+                amount_to_create = item_info.get("amountToCreate", 1)
+                item_name = item_info.get("name", f"Item {item_id}")
+                logger.info(f"Item '{item_name}' creates {amount_to_create} per operation")
+            
+            # Calculate the number of crafting operations needed
+            operations_needed = math.ceil(quantity / amount_to_create)
+            
+            logger.info(f"Starting bulk craft for item {item_id}: {quantity} items requested, {operations_needed} operations needed (creates {amount_to_create} per operation)")
+            logger.info(f"Bind lookup took: {bind_info_time:.4f}s, Item info lookup took: {item_info_time:.4f}s")
+            
+            # Trigger the bind the calculated number of times
             bind_trigger_start = time.time()
-            for i in range(iterations):
-                iteration_start = time.time()
+            
+            for i in range(operations_needed):
                 if not self.trigger_bind(craft_bind_index):
-                    logger.error(f"Failed to trigger bind on iteration {i}")
+                    logger.error(f"Failed to trigger bind on iteration {i+1}")
                     return False
-                iteration_time = time.time() - iteration_start
-                if i % 10 == 0:  # Log every 10th iteration
-                    logger.info(f"Iteration {i}: {iteration_time:.4f}s")
-                # No delay - maximum speed execution
+                
+                # Add a small delay between operations to allow Rust to process them
+                if i < operations_needed - 1:  # Don't delay after the last operation
+                    time.sleep(0.1)  # 100ms delay between operations
             
             bind_trigger_time = time.time() - bind_trigger_start
             total_time = time.time() - start_time
             
-            logger.info(f"Bulk craft completed successfully: {iterations} iterations")
+            logger.info(f"Bulk craft completed successfully: {operations_needed} operations for {quantity} items")
             logger.info(f"Total time: {total_time:.4f}s")
             logger.info(f"Bind lookup: {bind_info_time:.4f}s ({bind_info_time/total_time*100:.1f}%)")
+            logger.info(f"Item info lookup: {item_info_time:.4f}s ({item_info_time/total_time*100:.1f}%)")
             logger.info(f"Bind triggering: {bind_trigger_time:.4f}s ({bind_trigger_time/total_time*100:.1f}%)")
-            logger.info(f"Average per iteration: {bind_trigger_time/iterations:.4f}s")
+            logger.info(f"Average per operation: {bind_trigger_time/operations_needed:.4f}s")
             
             return True
             
@@ -506,9 +524,10 @@ class KeyboardManager:
             logger.error(f"Error canceling craft for item {item_id}: {e}")
             return False
     
-    def bulk_cancel_craft_item(self, item_id: int, iterations: int = 1) -> bool:
-        """Cancel crafting an item multiple times rapidly"""
+    def bulk_cancel_craft_item(self, item_id: int, quantity: int = 1) -> bool:
+        """Cancel crafting an item multiple times rapidly, calculating operations based on amountToCreate"""
         import time
+        import math
         start_time = time.time()
         
         try:
@@ -522,12 +541,28 @@ class KeyboardManager:
             
             _, cancel_bind_index = bind_info
             
-            logger.info(f"Starting bulk cancel craft for item {item_id}: {iterations} iterations")
-            logger.info(f"Bind lookup took: {bind_info_time:.4f}s")
+            # Get item information to calculate correct number of operations
+            item_info_start = time.time()
+            item_info = self.binds_manager.get_item_info(item_id)
+            item_info_time = time.time() - item_info_start
             
-            # Trigger the bind multiple times rapidly
+            if not item_info:
+                logger.warning(f"No item info found for item ID {item_id}, using default amountToCreate=1")
+                amount_to_create = 1
+            else:
+                amount_to_create = item_info.get("amountToCreate", 1)
+                item_name = item_info.get("name", f"Item {item_id}")
+                logger.info(f"Item '{item_name}' creates {amount_to_create} per operation")
+            
+            # Calculate the number of cancel operations needed
+            operations_needed = math.ceil(quantity / amount_to_create)
+            
+            logger.info(f"Starting bulk cancel craft for item {item_id}: {quantity} items requested, {operations_needed} operations needed (creates {amount_to_create} per operation)")
+            logger.info(f"Bind lookup took: {bind_info_time:.4f}s, Item info lookup took: {item_info_time:.4f}s")
+            
+            # Trigger the bind the calculated number of times
             bind_trigger_start = time.time()
-            for i in range(iterations):
+            for i in range(operations_needed):
                 iteration_start = time.time()
                 if not self.trigger_bind(cancel_bind_index):
                     logger.error(f"Failed to trigger cancel bind on iteration {i}")
@@ -540,11 +575,12 @@ class KeyboardManager:
             bind_trigger_time = time.time() - bind_trigger_start
             total_time = time.time() - start_time
             
-            logger.info(f"Bulk cancel craft completed successfully: {iterations} iterations")
+            logger.info(f"Bulk cancel craft completed successfully: {operations_needed} operations for {quantity} items")
             logger.info(f"Total time: {total_time:.4f}s")
             logger.info(f"Bind lookup: {bind_info_time:.4f}s ({bind_info_time/total_time*100:.1f}%)")
+            logger.info(f"Item info lookup: {item_info_time:.4f}s ({item_info_time/total_time*100:.1f}%)")
             logger.info(f"Bind triggering: {bind_trigger_time:.4f}s ({bind_trigger_time/total_time*100:.1f}%)")
-            logger.info(f"Average per iteration: {bind_trigger_time/iterations:.4f}s")
+            logger.info(f"Average per operation: {bind_trigger_time/operations_needed:.4f}s")
             
             return True
             
@@ -615,6 +651,11 @@ class KeyboardManager:
             "combatlog": 3056,
             "console_clear": 3057,
             "consoletoggle": 3058,
+            "chat_continuous_stack_enabled": 3059,
+            "chat_continuous_stack_disabled": 3060,
+            "chat_anti_afk_started": 3061,
+            "chat_anti_afk_stopped": 3062,
+            "cancel_all_crafting": 3063,
         }
         
         bind_index = api_commands.get(command_name)
@@ -720,6 +761,10 @@ class KeyboardManager:
             self.continuous_stack_stop_event.clear()
             self.continuous_stack_thread = threading.Thread(target=self._continuous_stack_inventory_loop, daemon=True)
             self.continuous_stack_thread.start()
+            
+            # Send chat feedback using static bind
+            self.trigger_api_command("chat_continuous_stack_enabled")
+            
             return True
         else:
             if not self.continuous_stack_enabled:
@@ -731,6 +776,10 @@ class KeyboardManager:
             self.continuous_stack_stop_event.set()
             if self.continuous_stack_thread and self.continuous_stack_thread.is_alive():
                 self.continuous_stack_thread.join(timeout=2.0)
+            
+            # Send chat feedback using static bind
+            self.trigger_api_command("chat_continuous_stack_disabled")
+            
             return True
     
     def _continuous_stack_inventory_loop(self):
@@ -859,6 +908,10 @@ class KeyboardManager:
             self.anti_afk_thread = threading.Thread(target=self._anti_afk_loop, daemon=True)
             self.anti_afk_thread.start()
             logger.info("Anti-AFK started successfully")
+            
+            # Send chat feedback using static bind
+            self.trigger_api_command("chat_anti_afk_started")
+            
             return True
         except Exception as e:
             logger.error(f"Failed to start anti-AFK: {e}")
@@ -877,6 +930,10 @@ class KeyboardManager:
             if self.anti_afk_thread and self.anti_afk_thread.is_alive():
                 self.anti_afk_thread.join(timeout=5)
             logger.info("Anti-AFK stopped successfully")
+            
+            # Send chat feedback using static bind
+            self.trigger_api_command("chat_anti_afk_stopped")
+            
             return True
         except Exception as e:
             logger.error(f"Failed to stop anti-AFK: {e}")
@@ -935,6 +992,22 @@ class KeyboardManager:
                     break
         
         logger.info("Anti-AFK loop stopped")
+    
+    def _send_chat_feedback(self, message: str):
+        """Send a chat feedback message to the game"""
+        try:
+            # Use the dynamic bind system to send the chat message
+            if hasattr(self, 'binds_manager') and self.binds_manager:
+                bind_index = self.binds_manager.get_or_create_dynamic_bind("chat_say", message)
+                if bind_index is not None:
+                    self.trigger_bind(bind_index)
+                    logger.info(f"Sent chat feedback: {message}")
+                else:
+                    logger.warning(f"Failed to create bind for chat feedback: {message}")
+            else:
+                logger.warning("Binds manager not available for chat feedback")
+        except Exception as e:
+            logger.error(f"Error sending chat feedback '{message}': {e}")
 
 
 def main():
