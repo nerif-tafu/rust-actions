@@ -34,6 +34,8 @@ class RustGameController:
     
     def craft_by_id(self, item_id: str, quantity: int) -> dict:
         """Craft an item by ID with given quantity"""
+        import time
+        api_start = time.time()
         logger.info(f"Crafting item ID {item_id} with quantity {quantity}")
         
         if not self.keyboard_manager:
@@ -47,25 +49,29 @@ class RustGameController:
         
         try:
             # Convert item_id to integer
+            convert_start = time.time()
             item_id_int = int(item_id)
+            convert_time = time.time() - convert_start
             
-            # Trigger the craft for the specified quantity
-            success_count = 0
-            for i in range(quantity):
-                if self.keyboard_manager.craft_item(item_id_int):
-                    success_count += 1
-                else:
-                    logger.warning(f"Failed to craft item {item_id} on attempt {i+1}")
+            # Use bulk crafting for better performance
+            bulk_start = time.time()
+            success = self.keyboard_manager.bulk_craft_item(item_id_int, quantity)
+            bulk_time = time.time() - bulk_start
+            
+            total_time = time.time() - api_start
+            
+            logger.info(f"API craft_by_id timing - Convert: {convert_time:.4f}s, Bulk: {bulk_time:.4f}s, Total: {total_time:.4f}s")
             
             return {
-                "success": success_count > 0,
+                "success": success,
                 "action": "craft_by_id",
                 "item_id": item_id,
                 "quantity": quantity,
-                "successful_crafts": success_count,
-                "message": f"Successfully triggered {success_count}/{quantity} crafts for item ID {item_id}"
+                "message": f"Bulk craft operation {'completed successfully' if success else 'failed'} for item ID {item_id} ({quantity} iterations) in {total_time:.4f}s"
             }
         except ValueError:
+            total_time = time.time() - api_start
+            logger.error(f"ValueError in craft_by_id after {total_time:.4f}s")
             return {
                 "success": False,
                 "action": "craft_by_id",
@@ -74,7 +80,8 @@ class RustGameController:
                 "message": f"Invalid item ID: {item_id} (must be a number)"
             }
         except Exception as e:
-            logger.error(f"Error crafting item {item_id}: {e}")
+            total_time = time.time() - api_start
+            logger.error(f"Error crafting item {item_id} after {total_time:.4f}s: {e}")
             return {
                 "success": False,
                 "action": "craft_by_id",
@@ -116,38 +123,19 @@ class RustGameController:
             # DEBUG: Log the item details
             logger.info(f"DEBUG: Found item '{item_name}' with numericId: {item_found['numericId']} (type: {type(item_found['numericId'])})")
             
-            # Convert quantity to integer and trigger the craft for the specified quantity
+            # Convert quantity to integer and use bulk crafting for better performance
             quantity_int = int(quantity)
-            success_count = 0
-            for i in range(quantity_int):
-                                # Convert numericId to integer
-                logger.info(f"DEBUG: Converting numericId '{item_found['numericId']}' to int...")
-                item_id_int = int(item_found["numericId"])
-                logger.info(f"DEBUG: Converted to int: {item_id_int} (type: {type(item_id_int)})")
-                logger.info(f"DEBUG: About to call keyboard_manager.craft_item with item_id_int: {item_id_int}")
-                logger.info(f"DEBUG: keyboard_manager type: {type(self.keyboard_manager)}")
-                logger.info(f"DEBUG: keyboard_manager.craft_item type: {type(self.keyboard_manager.craft_item)}")
-                try:
-                    result = self.keyboard_manager.craft_item(item_id_int)
-                    logger.info(f"DEBUG: craft_item returned: {result}")
-                    if result:
-                        success_count += 1
-                    else:
-                        logger.warning(f"Failed to craft item {item_name} on attempt {i+1}")
-                except Exception as craft_error:
-                    logger.error(f"DEBUG: Exception in craft_item call: {craft_error}")
-                    logger.error(f"DEBUG: Exception type: {type(craft_error)}")
-                    import traceback
-                    logger.error(f"DEBUG: Craft exception traceback: {traceback.format_exc()}")
-                    raise craft_error
+            item_id_int = int(item_found["numericId"])
+            
+            # Use bulk crafting for better performance
+            success = self.keyboard_manager.bulk_craft_item(item_id_int, quantity_int)
             
             return {
-                "success": success_count > 0,
+                "success": success,
                 "action": "craft_by_name",
                 "item_name": item_name,
                 "quantity": quantity,
-                "successful_crafts": success_count,
-                "message": f"Successfully triggered {success_count}/{quantity} crafts for {item_name}"
+                "message": f"Bulk craft operation {'completed successfully' if success else 'failed'} for {item_name} ({quantity} iterations)"
             }
         except ValueError as e:
             logger.error(f"Error crafting item {item_name}: Invalid numericId format - {e}")
@@ -185,22 +173,15 @@ class RustGameController:
             # Convert item_id to integer
             item_id_int = int(item_id)
             
-            # Convert quantity to integer and trigger the cancel craft for the specified quantity
-            quantity_int = int(quantity)
-            success_count = 0
-            for i in range(quantity_int):
-                if self.keyboard_manager.cancel_craft_item(item_id_int):
-                    success_count += 1
-                else:
-                    logger.warning(f"Failed to cancel craft item {item_id} on attempt {i+1}")
+            # Use bulk cancel for better performance
+            success = self.keyboard_manager.bulk_cancel_craft_item(item_id_int, quantity)
             
             return {
-                "success": success_count > 0,
+                "success": success,
                 "action": "cancel_craft_by_id",
                 "item_id": item_id,
                 "quantity": quantity,
-                "successful_cancels": success_count,
-                "message": f"Successfully triggered {success_count}/{quantity} cancel crafts for item ID {item_id}"
+                "message": f"Bulk cancel operation {'completed successfully' if success else 'failed'} for item ID {item_id} ({quantity} iterations)"
             }
         except ValueError:
             return {
@@ -250,24 +231,19 @@ class RustGameController:
                     "message": f"Item '{item_name}' not found in craftable items"
                 }
             
-            # Convert quantity to integer and trigger the cancel craft for the specified quantity
+            # Convert quantity to integer and use bulk cancel for better performance
             quantity_int = int(quantity)
-            success_count = 0
-            for i in range(quantity_int):
-                # Convert numericId to integer
-                item_id_int = int(item_found["numericId"])
-                if self.keyboard_manager.cancel_craft_item(item_id_int):
-                    success_count += 1
-                else:
-                    logger.warning(f"Failed to cancel craft item {item_name} on attempt {i+1}")
+            item_id_int = int(item_found["numericId"])
+            
+            # Use bulk cancel for better performance
+            success = self.keyboard_manager.bulk_cancel_craft_item(item_id_int, quantity_int)
             
             return {
-                "success": success_count > 0,
+                "success": success,
                 "action": "cancel_craft_by_name",
                 "item_name": item_name,
                 "quantity": quantity,
-                "successful_cancels": success_count,
-                "message": f"Successfully triggered {success_count}/{quantity} cancel crafts for {item_name}"
+                "message": f"Bulk cancel operation {'completed successfully' if success else 'failed'} for {item_name} ({quantity} iterations)"
             }
         except ValueError as e:
             logger.error(f"Error canceling craft item {item_name}: Invalid numericId format - {e}")
@@ -572,9 +548,9 @@ class RustGameController:
                 "message": f"Error: {str(e)}"
             }
     
-    def stack_inventory(self) -> dict:
+    def stack_inventory(self, iterations: int = 80) -> dict:
         """Stack inventory items"""
-        logger.info("Stacking inventory")
+        logger.info(f"Stacking inventory with {iterations} iterations")
         
         if not self.keyboard_manager:
             return {
@@ -584,23 +560,25 @@ class RustGameController:
             }
         
         try:
-            success = self.keyboard_manager.stack_inventory()
+            success = self.keyboard_manager.stack_inventory(iterations=iterations)
             return {
                 "success": success,
                 "action": "stack_inventory",
-                "message": "Inventory stacked successfully" if success else "Failed to stack inventory"
+                "iterations": iterations,
+                "message": f"Inventory stacked successfully ({iterations} iterations)" if success else f"Failed to stack inventory ({iterations} iterations)"
             }
         except Exception as e:
             logger.error(f"Error stacking inventory: {e}")
             return {
                 "success": False,
                 "action": "stack_inventory",
+                "iterations": iterations,
                 "message": f"Error: {str(e)}"
             }
     
-    def cancel_all_crafting(self) -> dict:
+    def cancel_all_crafting(self, iterations: int = 80) -> dict:
         """Cancel all crafting"""
-        logger.info("Canceling all crafting")
+        logger.info(f"Canceling all crafting with {iterations} iterations")
         
         if not self.keyboard_manager:
             return {
@@ -610,20 +588,21 @@ class RustGameController:
             }
         
         try:
-            # This would need to be implemented in the keyboard manager
-            # For now, we'll trigger multiple cancel commands for common items
-            success = True
-            # TODO: Implement proper cancel all crafting functionality
+            # Use the cancel_stack_inventory method to cancel all crafting
+            # This will cancel the most common crafting items (TC, Wood, Stone)
+            success = self.keyboard_manager.cancel_stack_inventory(iterations=iterations)
             return {
                 "success": success,
                 "action": "cancel_all_crafting",
-                "message": "Cancel all crafting command executed" if success else "Failed to cancel all crafting"
+                "iterations": iterations,
+                "message": f"All crafting canceled successfully ({iterations} iterations)" if success else f"Failed to cancel all crafting ({iterations} iterations)"
             }
         except Exception as e:
             logger.error(f"Error canceling all crafting: {e}")
             return {
                 "success": False,
                 "action": "cancel_all_crafting",
+                "iterations": iterations,
                 "message": f"Error: {str(e)}"
             }
     
@@ -640,8 +619,23 @@ class RustGameController:
             }
         
         try:
-            # Use type_and_enter to send the look radius command
-            success = self.keyboard_manager.type_and_enter(f"client.lookatradius {radius}")
+            # Map radius values to bind indices
+            radius_commands = {
+                20.0: "lookat_radius_20",    # Bind index 3006
+                0.0002: "lookat_radius_0"    # Bind index 3007
+            }
+            
+            command_name = radius_commands.get(radius)
+            if command_name is None:
+                return {
+                    "success": False,
+                    "action": "set_look_radius",
+                    "radius": radius,
+                    "message": f"Invalid radius value: {radius}. Must be one of: 20, 0.0002"
+                }
+            
+            # Use the proper bind instead of typing
+            success = self.keyboard_manager.trigger_api_command(command_name)
             return {
                 "success": success,
                 "action": "set_look_radius",
@@ -670,8 +664,26 @@ class RustGameController:
             }
         
         try:
-            # Use type_and_enter to send the voice volume command
-            success = self.keyboard_manager.type_and_enter(f"audio.voices {volume}")
+            # Map volume values to bind indices
+            volume_binds = {
+                0.0: "audio_voices_0",
+                0.25: "audio_voices_25", 
+                0.5: "audio_voices_50",
+                0.75: "audio_voices_75",
+                1.0: "audio_voices_100"
+            }
+            
+            command_name = volume_binds.get(volume)
+            if command_name is None:
+                return {
+                    "success": False,
+                    "action": "set_voice_volume",
+                    "volume": volume,
+                    "message": f"Invalid volume value: {volume}. Must be one of: 0, 0.25, 0.5, 0.75, 1"
+                }
+            
+            # Use the proper bind instead of typing
+            success = self.keyboard_manager.trigger_api_command(command_name)
             return {
                 "success": success,
                 "action": "set_voice_volume",
@@ -700,8 +712,26 @@ class RustGameController:
             }
         
         try:
-            # Use type_and_enter to send the master volume command
-            success = self.keyboard_manager.type_and_enter(f"audio.master {volume}")
+            # Map volume values to bind indices
+            volume_binds = {
+                0.0: "audio_master_0",
+                0.25: "audio_master_25", 
+                0.5: "audio_master_50",
+                0.75: "audio_master_75",
+                1.0: "audio_master_100"
+            }
+            
+            command_name = volume_binds.get(volume)
+            if command_name is None:
+                return {
+                    "success": False,
+                    "action": "set_master_volume",
+                    "volume": volume,
+                    "message": f"Invalid volume value: {volume}. Must be one of: 0, 0.25, 0.5, 0.75, 1"
+                }
+            
+            # Use the proper bind instead of typing
+            success = self.keyboard_manager.trigger_api_command(command_name)
             return {
                 "success": success,
                 "action": "set_master_volume",
@@ -759,9 +789,23 @@ class RustGameController:
             }
         
         try:
-            # Use type_and_enter to send the HUD state command
-            hud_value = "1" if enabled else "0"
-            success = self.keyboard_manager.type_and_enter(f"graphics.hud {hud_value}")
+            # Map HUD state to bind indices
+            hud_commands = {
+                True: "hud_on",   # Bind index 3019
+                False: "hud_off"  # Bind index 3018
+            }
+            
+            command_name = hud_commands.get(enabled)
+            if command_name is None:
+                return {
+                    "success": False,
+                    "action": "set_hud_state",
+                    "enabled": enabled,
+                    "message": f"Invalid HUD state: {enabled}"
+                }
+            
+            # Use the proper bind instead of typing
+            success = self.keyboard_manager.trigger_api_command(command_name)
             return {
                 "success": success,
                 "action": "set_hud_state",
@@ -1295,8 +1339,11 @@ def connect():
 def stack_inventory():
     """Stack inventory items"""
     try:
+        data = request.get_json() or {}
+        iterations = data.get('iterations', 80)
+        
         controller = create_rust_controller()
-        result = controller.stack_inventory()
+        result = controller.stack_inventory(iterations=iterations)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in stack_inventory: {e}")
@@ -1306,8 +1353,11 @@ def stack_inventory():
 def cancel_all_crafting():
     """Cancel all crafting"""
     try:
+        data = request.get_json() or {}
+        iterations = data.get('iterations', 80)
+        
         controller = create_rust_controller()
-        result = controller.cancel_all_crafting()
+        result = controller.cancel_all_crafting(iterations=iterations)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in cancel_all_crafting: {e}")

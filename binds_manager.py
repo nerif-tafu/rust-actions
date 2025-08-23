@@ -21,7 +21,7 @@ class BindsManager:
             'keypaddivide', 'keypadmultiply', 'keypadminus', 'keypadplus', 'keypadperiod',
             'keypad1', 'keypad2', 'keypad3', 'keypad4', 'keypad5', 'keypad6', 'keypad7', 'keypad8', 'keypad9', 'keypad0',
             'f13', 'f14', 'f15',
-            'slash', 'period', 'comma', 'quote', 'backquote', 'semicolon', 'leftbracket', 'rightbracket'
+            'slash', 'period', 'comma', 'backquote', 'semicolon', 'leftbracket', 'rightbracket'
         ]
         
         # Reserved ranges
@@ -49,10 +49,8 @@ class BindsManager:
     def _load_item_database(self) -> Dict:
         """Load the item database from JSON file."""
         try:
-            print(f"DEBUG: Loading item database from: {self.item_database_path}")
             with open(self.item_database_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            print(f"DEBUG: Successfully loaded item database with {len(data.get('items', {}))} items")
             return data
         except FileNotFoundError:
             print(f"Warning: Item database not found at {self.item_database_path}")
@@ -67,7 +65,6 @@ class BindsManager:
     def _get_craftable_items(self) -> List[Dict]:
         """Extract all user-craftable items from the database."""
         craftable_items = []
-        print(f"DEBUG: Processing {len(self.item_database.get('items', {}))} items for craftable items")
         for item_id, item_data in self.item_database.get("items", {}).items():
             if item_data.get("userCraftable", False):
                 craftable_items.append({
@@ -76,7 +73,6 @@ class BindsManager:
                     "name": item_data.get("name", "Unknown"),
                     "shortname": item_data.get("shortname", "unknown")
                 })
-        print(f"DEBUG: Found {len(craftable_items)} craftable items")
         return craftable_items
     
     def _generate_key_combinations(self) -> List[str]:
@@ -105,8 +101,7 @@ class BindsManager:
             item_id = int(item["numericId"])
             item_name = item["name"]
             
-            # DEBUG: Log the item details during bind generation
-            logger.info(f"DEBUG: Generating binds for item '{item_name}' with numericId: {item['numericId']} -> item_id: {item_id} (type: {type(item_id)})")
+
             
             # Craft bind
             craft_bind_index = i * 2
@@ -435,15 +430,7 @@ class BindsManager:
     
     def get_item_bind_info(self, item_id: int) -> Optional[Tuple[int, int]]:
         """Get the bind indices for a specific item (craft and cancel)."""
-        # DEBUG: Log the lookup attempt
-        logger = logging.getLogger(__name__)
-        logger.info(f"DEBUG: get_item_bind_info called with item_id: {item_id} (type: {type(item_id)})")
-        logger.info(f"DEBUG: bind_mapping type: {type(self.bind_mapping)}")
-        logger.info(f"DEBUG: bind_mapping keys sample: {list(self.bind_mapping.keys())[:5]}")
-        logger.info(f"DEBUG: bind_mapping key types sample: {[type(k) for k in list(self.bind_mapping.keys())[:5]]}")
-        result = self.bind_mapping.get(item_id)
-        logger.info(f"DEBUG: Lookup result: {result}")
-        return result
+        return self.bind_mapping.get(item_id)
     
     def get_key_combo_for_bind(self, bind_index: int) -> Optional[str]:
         """Get the key combination for a specific bind index."""

@@ -2,10 +2,14 @@ import json
 import time
 import threading
 import os
+import logging
 from typing import Dict, List, Optional, Tuple, Any
 from pynput import keyboard
 from pynput.keyboard import Key, KeyCode
 from binds_manager import BindsManager
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 class KeyboardSimulator:
     def __init__(self):
@@ -86,9 +90,8 @@ class KeyboardSimulator:
             'brace_right': '}', '}': '}',
             'pipe': '|', '|': '|',
             'tilde': '~', '~': '~',
+            "backquote": "'", "'": "'",  # In Rust keys.cfg, 'backquote' means single quote/apostrophe
             'backtick': '`', '`': '`',
-            'quote': "'", "'": "'",
-            'double_quote': '"', '"': '"',
             'question': '?', '?': '?',
             'exclamation': '!', '!': '!',
             'at': '@', '@': '@',
@@ -120,7 +123,7 @@ class KeyboardSimulator:
                 self._ensure_numlock_on()
             
             self.controller.press(normalized_key)
-            time.sleep(0.05)  # Hold for 50ms
+            time.sleep(0.005)  # Hold for 5ms (reduced from 50ms for speed)
             self.controller.release(normalized_key)
         except Exception as e:
             raise Exception(f"Failed to send key {normalized_key}: {str(e)}")
@@ -141,25 +144,45 @@ class KeyboardSimulator:
     
     def combo(self, keys: List[str]):
         """Simulate a multi-key combination"""
+        import time
+        combo_start = time.time()
+        
         normalized_keys = []
+        normalize_start = time.time()
         for key in keys:
             normalized_key = self.normalize_key(key)
             if not normalized_key:
                 raise ValueError(f"Invalid key: {key}")
             normalized_keys.append(normalized_key)
+        normalize_time = time.time() - normalize_start
         
         try:
             # Press all keys down
+            press_start = time.time()
             for key in normalized_keys:
                 self.controller.press(key)
+            press_time = time.time() - press_start
             
-            # Hold for a moment
-            time.sleep(0.1)
+            # Hold for a minimal moment (reduced from 0.1s to 0.01s for speed)
+            hold_start = time.time()
+            time.sleep(0.02)
+            hold_time = time.time() - hold_start
             
             # Release in reverse order
+            release_start = time.time()
             for key in reversed(normalized_keys):
                 self.controller.release(key)
+            release_time = time.time() - release_start
+            
+            total_time = time.time() - combo_start
+            
+            # Log timing details for debugging (only if significant)
+            if total_time > 0.02:  # Only log if combo takes more than 20ms (reduced threshold)
+                print(f"Combo timing - Normalize: {normalize_time:.4f}s, Press: {press_time:.4f}s, Hold: {hold_time:.4f}s, Release: {release_time:.4f}s, Total: {total_time:.4f}s")
+            
         except Exception as e:
+            total_time = time.time() - combo_start
+            print(f"Combo failed after {total_time:.4f}s: {str(e)}")
             raise Exception(f"Failed to send combination {'+'.join(keys)}: {str(e)}")
     
     def down(self, key):
@@ -247,15 +270,26 @@ class KeyboardManager:
     
     def trigger_bind(self, bind_index: int) -> bool:
         """Trigger a bind by its index"""
+        import time
         with self._lock:
             try:
+                cache_start = time.time()
                 key_combo = self.get_key_combo_for_bind(bind_index)
+                cache_time = time.time() - cache_start
+                
                 if not key_combo:
                     print(f"Warning: No key combination found for bind index {bind_index}")
                     return False
                 
+                combo_start = time.time()
                 print(f"Triggering bind {bind_index}: {'+'.join(key_combo)}")
                 self.keyboard_simulator.combo(key_combo)
+                combo_time = time.time() - combo_start
+                
+                # Log timing details for debugging
+                if cache_time > 0.001 or combo_time > 0.01:  # Only log if there's significant time
+                    print(f"Bind {bind_index} timing - Cache: {cache_time:.4f}s, Combo: {combo_time:.4f}s")
+                
                 return True
                 
             except Exception as e:
@@ -264,37 +298,65 @@ class KeyboardManager:
     
     def craft_item(self, item_id: int) -> bool:
         """Craft an item by its ID"""
-        print(f"PRINT: craft_item called with item_id: {item_id} (type: {type(item_id)})")
         try:
-            logger = logging.getLogger(__name__)
-            logger.info(f"DEBUG: craft_item called with item_id: {item_id} (type: {type(item_id)})")
-            
-            # DEBUG: Log the item_id being looked up
-            logger.info(f"DEBUG: Looking up bind for item_id: {item_id} (type: {type(item_id)})")
-            logger.info(f"DEBUG: bind_mapping keys: {list(self.binds_manager.bind_mapping.keys())[:10]}...")  # Show first 10 keys
-            
-            logger.info(f"DEBUG: About to call get_item_bind_info...")
             bind_info = self.binds_manager.get_item_bind_info(item_id)
-            logger.info(f"DEBUG: get_item_bind_info returned: {bind_info}")
             
             if not bind_info:
-                logger.warning(f"Warning: No bind found for item ID {item_id}")
+                logger.warning(f"No bind found for item ID {item_id}")
                 return False
             
-            logger.info(f"DEBUG: About to unpack bind_info: {bind_info}")
             craft_bind_index, _ = bind_info
-            logger.info(f"DEBUG: Unpacked craft_bind_index: {craft_bind_index} (type: {type(craft_bind_index)})")
-            
-            logger.info(f"DEBUG: About to call trigger_bind with craft_bind_index: {craft_bind_index}")
-            result = self.trigger_bind(craft_bind_index)
-            logger.info(f"DEBUG: trigger_bind returned: {result}")
-            return result
+            return self.trigger_bind(craft_bind_index)
             
         except Exception as e:
             logger.error(f"Error crafting item {item_id}: {e}")
-            logger.error(f"Exception type: {type(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            return False
+    
+    def bulk_craft_item(self, item_id: int, iterations: int = 1) -> bool:
+        """Craft an item multiple times rapidly"""
+        import time
+        start_time = time.time()
+        
+        try:
+            bind_info_start = time.time()
+            bind_info = self.binds_manager.get_item_bind_info(item_id)
+            bind_info_time = time.time() - bind_info_start
+            
+            if not bind_info:
+                logger.warning(f"No bind found for item ID {item_id}")
+                return False
+            
+            craft_bind_index, _ = bind_info
+            
+            logger.info(f"Starting bulk craft for item {item_id}: {iterations} iterations")
+            logger.info(f"Bind lookup took: {bind_info_time:.4f}s")
+            
+            # Trigger the bind multiple times rapidly
+            bind_trigger_start = time.time()
+            for i in range(iterations):
+                iteration_start = time.time()
+                if not self.trigger_bind(craft_bind_index):
+                    logger.error(f"Failed to trigger bind on iteration {i}")
+                    return False
+                iteration_time = time.time() - iteration_start
+                if i % 10 == 0:  # Log every 10th iteration
+                    logger.info(f"Iteration {i}: {iteration_time:.4f}s")
+                # No delay - maximum speed execution
+            
+            bind_trigger_time = time.time() - bind_trigger_start
+            total_time = time.time() - start_time
+            
+            logger.info(f"Bulk craft completed successfully: {iterations} iterations")
+            logger.info(f"Total time: {total_time:.4f}s")
+            logger.info(f"Bind lookup: {bind_info_time:.4f}s ({bind_info_time/total_time*100:.1f}%)")
+            logger.info(f"Bind triggering: {bind_trigger_time:.4f}s ({bind_trigger_time/total_time*100:.1f}%)")
+            logger.info(f"Average per iteration: {bind_trigger_time/iterations:.4f}s")
+            
+            return True
+            
+        except Exception as e:
+            total_time = time.time() - start_time
+            logger.error(f"Error bulk crafting item {item_id} after {total_time:.4f}s: {e}")
             return False
     
     def cancel_craft_item(self, item_id: int) -> bool:
@@ -302,14 +364,61 @@ class KeyboardManager:
         try:
             bind_info = self.binds_manager.get_item_bind_info(item_id)
             if not bind_info:
-                print(f"Warning: No bind found for item ID {item_id}")
+                logger.warning(f"No bind found for item ID {item_id}")
                 return False
             
             _, cancel_bind_index = bind_info
             return self.trigger_bind(cancel_bind_index)
             
         except Exception as e:
-            print(f"Error canceling craft for item {item_id}: {e}")
+            logger.error(f"Error canceling craft for item {item_id}: {e}")
+            return False
+    
+    def bulk_cancel_craft_item(self, item_id: int, iterations: int = 1) -> bool:
+        """Cancel crafting an item multiple times rapidly"""
+        import time
+        start_time = time.time()
+        
+        try:
+            bind_info_start = time.time()
+            bind_info = self.binds_manager.get_item_bind_info(item_id)
+            bind_info_time = time.time() - bind_info_start
+            
+            if not bind_info:
+                logger.warning(f"No bind found for item ID {item_id}")
+                return False
+            
+            _, cancel_bind_index = bind_info
+            
+            logger.info(f"Starting bulk cancel craft for item {item_id}: {iterations} iterations")
+            logger.info(f"Bind lookup took: {bind_info_time:.4f}s")
+            
+            # Trigger the bind multiple times rapidly
+            bind_trigger_start = time.time()
+            for i in range(iterations):
+                iteration_start = time.time()
+                if not self.trigger_bind(cancel_bind_index):
+                    logger.error(f"Failed to trigger cancel bind on iteration {i}")
+                    return False
+                iteration_time = time.time() - iteration_start
+                if i % 10 == 0:  # Log every 10th iteration
+                    logger.info(f"Iteration {i}: {iteration_time:.4f}s")
+                # No delay - maximum speed execution
+            
+            bind_trigger_time = time.time() - bind_trigger_start
+            total_time = time.time() - start_time
+            
+            logger.info(f"Bulk cancel craft completed successfully: {iterations} iterations")
+            logger.info(f"Total time: {total_time:.4f}s")
+            logger.info(f"Bind lookup: {bind_info_time:.4f}s ({bind_info_time/total_time*100:.1f}%)")
+            logger.info(f"Bind triggering: {bind_trigger_time:.4f}s ({bind_trigger_time/total_time*100:.1f}%)")
+            logger.info(f"Average per iteration: {bind_trigger_time/iterations:.4f}s")
+            
+            return True
+            
+        except Exception as e:
+            total_time = time.time() - start_time
+            logger.error(f"Error bulk canceling craft for item {item_id} after {total_time:.4f}s: {e}")
             return False
     
     def trigger_api_command(self, command_name: str) -> bool:
@@ -339,7 +448,7 @@ class KeyboardManager:
         
         bind_index = api_commands.get(command_name)
         if bind_index is None:
-            print(f"Warning: Unknown API command: {command_name}")
+            logger.warning(f"Unknown API command: {command_name}")
             return False
         
         return self.trigger_bind(bind_index)
@@ -357,50 +466,54 @@ class KeyboardManager:
         
         bind_index = chat_commands.get(command_name)
         if bind_index is None:
-            print(f"Warning: Unknown chat command: {command_name}")
+            logger.warning(f"Unknown chat command: {command_name}")
             return False
         
         # For now, just trigger the bind (placeholders)
         return self.trigger_bind(bind_index)
     
-    def stack_inventory(self, iterations: int = 100) -> bool:
+    def stack_inventory(self, iterations: int = 80) -> bool:
         """Stack inventory by triggering the stack inventory binds"""
         try:
             # These are the item IDs for the stack inventory items
             stack_items = [-97956382, 1390353317, 15388698]  # TC, Wood, Stone
             
-            print(f"Stacking inventory {iterations} times...")
+            # Only log start and end, not every iteration
+            logger.info(f"Starting stack inventory: {iterations} iterations")
             for i in range(iterations):
                 for item_id in stack_items:
                     if not self.craft_item(item_id):
-                        print(f"Failed to stack item {item_id} on iteration {i}")
+                        logger.error(f"Failed to stack item {item_id} on iteration {i}")
                         return False
-                time.sleep(0.01)  # Small delay between iterations
+                # No delay - maximum speed execution
             
+            logger.info("Stack inventory completed successfully")
             return True
             
         except Exception as e:
-            print(f"Error stacking inventory: {e}")
+            logger.error(f"Error stacking inventory: {e}")
             return False
     
-    def cancel_stack_inventory(self, iterations: int = 100) -> bool:
+    def cancel_stack_inventory(self, iterations: int = 80) -> bool:
         """Cancel stack inventory by triggering the cancel binds"""
         try:
             # These are the item IDs for the stack inventory items
             stack_items = [-97956382, 1390353317, 15388698]  # TC, Wood, Stone
             
-            print(f"Canceling stack inventory {iterations} times...")
+            # Only log start and end, not every iteration
+            logger.info(f"Starting cancel stack inventory: {iterations} iterations")
             for i in range(iterations):
                 for item_id in stack_items:
                     if not self.cancel_craft_item(item_id):
-                        print(f"Failed to cancel stack item {item_id} on iteration {i}")
+                        logger.error(f"Failed to cancel stack item {item_id} on iteration {i}")
                         return False
-                time.sleep(0.01)  # Small delay between iterations
+                # No delay - maximum speed execution
             
+            logger.info("Cancel stack inventory completed successfully")
             return True
             
         except Exception as e:
-            print(f"Error canceling stack inventory: {e}")
+            logger.error(f"Error canceling stack inventory: {e}")
             return False
     
     def stack_inventory_continuous(self, enable: bool) -> bool:

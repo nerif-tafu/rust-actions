@@ -470,11 +470,29 @@ class RustControllerGUI:
         cancel_all_frame = ttk.Frame(crafting_frame)
         cancel_all_frame.pack(fill="x", pady=(10, 0))
         
+        ttk.Label(cancel_all_frame, text="Iterations:").pack(side=tk.LEFT, padx=(0, 5))
+        self.cancel_iterations_var = tk.StringVar(value="80")
+        ttk.Entry(cancel_all_frame, textvariable=self.cancel_iterations_var, width=8).pack(side=tk.LEFT, padx=(0, 5))
+        
         ttk.Button(cancel_all_frame, text="Cancel All Crafting", 
-                  command=lambda: self.test_api_call("cancel_all_crafting", {})).pack(side=tk.LEFT, padx=(0, 5))
+                  command=lambda: self.test_api_call("cancel_all_crafting", {"iterations": int(self.cancel_iterations_var.get())})).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(cancel_all_frame, text="Copy PowerShell", 
-                  command=lambda: self.copy_curl_to_clipboard("cancel_all_crafting", {})).pack(side=tk.LEFT)
+                  command=lambda: self.copy_curl_to_clipboard("cancel_all_crafting", {"iterations": int(self.cancel_iterations_var.get())})).pack(side=tk.LEFT)
+        
+        # Stack Inventory
+        stack_inventory_frame = ttk.Frame(crafting_frame)
+        stack_inventory_frame.pack(fill="x", pady=(10, 0))
+        
+        ttk.Label(stack_inventory_frame, text="Iterations:").pack(side=tk.LEFT, padx=(0, 5))
+        self.stack_iterations_var = tk.StringVar(value="80")
+        ttk.Entry(stack_inventory_frame, textvariable=self.stack_iterations_var, width=8).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(stack_inventory_frame, text="Stack Inventory", 
+                  command=lambda: self.test_api_call("stack_inventory", {"iterations": int(self.stack_iterations_var.get())})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(stack_inventory_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("stack_inventory", {"iterations": int(self.stack_iterations_var.get())})).pack(side=tk.LEFT)
         
         # Player Actions Section
         player_frame = ttk.LabelFrame(scrollable_frame, text="Player Actions", padding="5")
@@ -587,16 +605,6 @@ class RustControllerGUI:
         ttk.Button(connect_frame, text="Copy PowerShell", 
                   command=lambda: self.copy_curl_to_clipboard("connect", {"ip": self.server_ip_var.get()})).pack(side=tk.LEFT)
         
-        # Inventory
-        stack_inventory_frame = ttk.Frame(game_frame)
-        stack_inventory_frame.pack(fill="x", pady=(10, 0))
-        
-        ttk.Button(stack_inventory_frame, text="Stack Inventory", 
-                  command=lambda: self.test_api_call("stack_inventory", {})).pack(side=tk.LEFT, padx=(0, 5))
-        
-        ttk.Button(stack_inventory_frame, text="Copy PowerShell", 
-                  command=lambda: self.copy_curl_to_clipboard("stack_inventory", {})).pack(side=tk.LEFT)
-        
         # Settings Section
         settings_frame = ttk.LabelFrame(scrollable_frame, text="Settings", padding="5")
         settings_frame.pack(fill="x", pady=(0, 10))
@@ -606,38 +614,52 @@ class RustControllerGUI:
         radius_frame = ttk.Frame(settings_frame)
         radius_frame.pack(fill="x", pady=(0, 5))
         
-        self.radius_var = tk.StringVar()
-        ttk.Entry(radius_frame, textvariable=self.radius_var, width=10).pack(side=tk.LEFT, padx=(0, 5))
+        self.radius_var = tk.StringVar(value="20")
+        radius_combo = ttk.Combobox(radius_frame, textvariable=self.radius_var, 
+                                   values=["20", "0.0002"], width=10, state="readonly")
+        radius_combo.pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(radius_frame, text="Set", 
-                  command=lambda: self.test_api_call("set_look_radius", {"radius": self.radius_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+                  command=lambda: self.test_api_call("set_look_radius", {"radius": float(self.radius_var.get())})).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(radius_frame, text="Copy PowerShell", 
-                  command=lambda: self.copy_curl_to_clipboard("set_look_radius", {"radius": self.radius_var.get()})).pack(side=tk.LEFT)
+                  command=lambda: self.copy_curl_to_clipboard("set_look_radius", {"radius": float(self.radius_var.get())})).pack(side=tk.LEFT)
         
         # Volume controls
         volume_frame = ttk.Frame(settings_frame)
         volume_frame.pack(fill="x", pady=(10, 0))
         
+        # Voice Volume
         ttk.Label(volume_frame, text="Voice Volume:").pack(anchor=tk.W)
-        self.voice_volume_var = tk.StringVar()
-        ttk.Entry(volume_frame, textvariable=self.voice_volume_var, width=10).pack(side=tk.LEFT, padx=(0, 5))
+        voice_volume_frame = ttk.Frame(volume_frame)
+        voice_volume_frame.pack(fill="x", pady=(0, 5))
         
-        ttk.Button(volume_frame, text="Set", 
-                  command=lambda: self.test_api_call("set_voice_volume", {"volume": self.voice_volume_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        self.voice_volume_var = tk.StringVar(value="0.5")
+        voice_volume_combo = ttk.Combobox(voice_volume_frame, textvariable=self.voice_volume_var, 
+                                         values=["0", "0.25", "0.5", "0.75", "1"], width=10, state="readonly")
+        voice_volume_combo.pack(side=tk.LEFT, padx=(0, 5))
         
-        ttk.Button(volume_frame, text="Copy PowerShell", 
-                  command=lambda: self.copy_curl_to_clipboard("set_voice_volume", {"volume": self.voice_volume_var.get()})).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(voice_volume_frame, text="Set", 
+                  command=lambda: self.test_api_call("set_voice_volume", {"volume": float(self.voice_volume_var.get())})).pack(side=tk.LEFT, padx=(0, 5))
         
-        ttk.Label(volume_frame, text="Master Volume:").pack(anchor=tk.W)
-        self.master_volume_var = tk.StringVar()
-        ttk.Entry(volume_frame, textvariable=self.master_volume_var, width=10).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(voice_volume_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("set_voice_volume", {"volume": float(self.voice_volume_var.get())})).pack(side=tk.LEFT, padx=(0, 10))
         
-        ttk.Button(volume_frame, text="Set", 
-                  command=lambda: self.test_api_call("set_master_volume", {"volume": self.master_volume_var.get()})).pack(side=tk.LEFT, padx=(0, 5))
+        # Master Volume
+        ttk.Label(volume_frame, text="Master Volume:").pack(anchor=tk.W, pady=(10, 0))
+        master_volume_frame = ttk.Frame(volume_frame)
+        master_volume_frame.pack(fill="x", pady=(0, 5))
         
-        ttk.Button(volume_frame, text="Copy PowerShell", 
-                  command=lambda: self.copy_curl_to_clipboard("set_master_volume", {"volume": self.master_volume_var.get()})).pack(side=tk.LEFT)
+        self.master_volume_var = tk.StringVar(value="0.5")
+        master_volume_combo = ttk.Combobox(master_volume_frame, textvariable=self.master_volume_var, 
+                                          values=["0", "0.25", "0.5", "0.75", "1"], width=10, state="readonly")
+        master_volume_combo.pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(master_volume_frame, text="Set", 
+                  command=lambda: self.test_api_call("set_master_volume", {"volume": float(self.master_volume_var.get())})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(master_volume_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("set_master_volume", {"volume": float(self.master_volume_var.get())})).pack(side=tk.LEFT)
         
         # HUD State
         hud_frame = ttk.Frame(settings_frame)
@@ -714,7 +736,12 @@ class RustControllerGUI:
             pass
         
         # Execute immediately if no delay or negative delay
-        self._execute_api_call(action, params)
+        # Show info for long-running operations
+        if action in ["stack_inventory", "cancel_all_crafting"]:
+            self.log_message(f"⏳ Starting {action.replace('_', ' ').title()} - this may take up to 2 minutes...")
+        
+        # Run API call in background thread to prevent GUI freezing
+        threading.Thread(target=self._execute_api_call, args=(action, params), daemon=True).start()
     
     def _execute_api_call(self, action, params):
         """Execute the actual API call"""
@@ -753,16 +780,23 @@ class RustControllerGUI:
             
             url = f"http://localhost:5000{endpoint}"
             
+            # Determine timeout based on action type
+            # Long-running operations need more time
+            if action in ["stack_inventory", "cancel_all_crafting"]:
+                timeout = 120  # 2 minutes for long operations
+            else:
+                timeout = 5    # 5 seconds for regular operations
+            
             # Prepare the request
             if params:
                 # Filter out empty values
                 filtered_params = {k: v for k, v in params.items() if v is not None and v != ""}
                 if filtered_params:
-                    response = requests.post(url, json=filtered_params, timeout=5)
+                    response = requests.post(url, json=filtered_params, timeout=timeout)
                 else:
-                    response = requests.post(url, timeout=5)
+                    response = requests.post(url, timeout=timeout)
             else:
-                response = requests.post(url, timeout=5)
+                response = requests.post(url, timeout=timeout)
             
             if response.status_code == 200:
                 result = response.json()
@@ -772,16 +806,21 @@ class RustControllerGUI:
                     # Log success to server logs instead of showing popup
                     self.log_message(f"API Success: {action.replace('_', ' ').title()} - {result.get('message', 'Action completed successfully')}")
                 else:
-                    messagebox.showerror("API Error", f"{action.replace('_', ' ').title()}: {result.get('message', 'Unknown error')}")
+                    # Use after_idle for GUI updates from background thread
+                    self.root.after_idle(lambda: messagebox.showerror("API Error", f"{action.replace('_', ' ').title()}: {result.get('message', 'Unknown error')}"))
             else:
-                messagebox.showerror("HTTP Error", f"Server returned status code {response.status_code}")
+                # Use after_idle for GUI updates from background thread
+                self.root.after_idle(lambda: messagebox.showerror("HTTP Error", f"Server returned status code {response.status_code}"))
                 
         except requests.exceptions.ConnectionError:
-            messagebox.showerror("Connection Error", "Could not connect to the server. Make sure it's running.")
+            # Use after_idle for GUI updates from background thread
+            self.root.after_idle(lambda: messagebox.showerror("Connection Error", "Could not connect to the server. Make sure it's running."))
         except requests.exceptions.Timeout:
-            messagebox.showerror("Timeout Error", "Request timed out. The server may be busy.")
+            # Use after_idle for GUI updates from background thread
+            self.root.after_idle(lambda: messagebox.showerror("Timeout Error", "Request timed out. The server may be busy."))
         except Exception as e:
-            messagebox.showerror("Error", f"An error occurred: {str(e)}")
+            # Use after_idle for GUI updates from background thread
+            self.root.after_idle(lambda: messagebox.showerror("Error", f"An error occurred: {str(e)}"))
     
     def generate_curl_command(self, action, params):
         """Generate a Windows PowerShell compatible command for the given API call"""
