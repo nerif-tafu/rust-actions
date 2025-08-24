@@ -113,30 +113,49 @@ class RustControllerGUI:
         self.root.geometry("1200x700")
         self.root.minsize(1000, 500)
         
-        # Set window icon
-        try:
-            # Try to use camera.png as icon, convert to ICO if needed
-            if os.path.exists("camera.png"):
-                # Convert PNG to ICO for window icon
-                from PIL import Image
-                img = Image.open("camera.png")
-                # Resize to standard icon size
-                img = img.resize((32, 32), Image.Resampling.LANCZOS)
-                img.save("camera_temp.ico", format='ICO')
-                self.root.iconbitmap("camera_temp.ico")
-                # Clean up temporary file
-                try:
-                    os.remove("camera_temp.ico")
-                except:
-                    pass
-                self.log_message("✅ Using camera.png for window icon")
-            elif os.path.exists("rust_controller.ico"):
-                self.root.iconbitmap("rust_controller.ico")
-                self.log_message("✅ Using rust_controller.ico for window icon")
-            else:
-                self.log_message("⚠️ No icon file found for window")
-        except Exception as e:
-            self.log_message(f"⚠️ Error setting window icon: {e}")
+        # Set window icon using keyfree-companion's exact approach
+        def setup_window_icon():
+            """Set the window icon using PhotoImage (keyfree-companion method)"""
+            try:
+                import os
+                import sys
+                
+                # Handle both development and packaged executable paths
+                if getattr(sys, 'frozen', False):
+                    # Running as executable
+                    base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
+                else:
+                    # Running as script
+                    base_path = os.path.dirname(__file__)
+                
+                # Try camera.png first (PNG files work better with iconphoto)
+                for icon_name in ['camera.png', 'rust_controller.png', 'camera.ico', 'rust_controller.ico']:
+                    icon_path = os.path.join(base_path, icon_name)
+                    if os.path.exists(icon_path):
+                        try:
+                            if icon_name.endswith('.png'):
+                                # Load and set the icon using PhotoImage (keyfree-companion approach)
+                                icon_image = tk.PhotoImage(file=icon_path)
+                                self.root.iconphoto(True, icon_image)
+                                # Keep a reference to prevent garbage collection
+                                self.window_icon = icon_image
+                                self.log_message(f"✅ Set window icon using PhotoImage: {icon_name}")
+                                return
+                            else:
+                                # Fallback to iconbitmap for ICO files
+                                self.root.iconbitmap(icon_path)
+                                self.log_message(f"✅ Set window icon using iconbitmap: {icon_name}")
+                                return
+                        except Exception as e:
+                            self.log_message(f"⚠️ Failed to load {icon_name}: {e}")
+                            continue
+                
+                self.log_message("⚠️ No suitable icon files found")
+            except Exception as e:
+                self.log_message(f"⚠️ Failed to set window icon: {e}")
+        
+        # Set the icon immediately using keyfree-companion's method
+        setup_window_icon()
         
         # Create GUI
         self.create_widgets()
@@ -1248,49 +1267,79 @@ class RustControllerGUI:
     
     def setup_system_tray(self):
         """Setup system tray icon and menu"""
-        # Create system tray icon
+        # Create system tray icon - standard approach
         try:
-            # Try to load camera.png first
-            if os.path.exists("camera.png"):
-                try:
-                    self.icon_image = Image.open("camera.png")
-                    # Convert to RGB if it's not already
+            # Check if we're running as an executable
+            if getattr(sys, 'frozen', False):
+                # Running as executable - try to load bundled icon files
+                # For single-file executables, files are in sys._MEIPASS
+                base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
+                
+                # Try to load icon from bundled files
+                icon_found = False
+                for icon_name in ["camera.ico", "camera.png", "rust_controller.ico", "rust_controller.png"]:
+                    icon_path = os.path.join(base_path, icon_name)
+                    if os.path.exists(icon_path):
+                        try:
+                            self.icon_image = Image.open(icon_path)
+                            # Convert to RGB for system tray compatibility
+                            if self.icon_image.mode != 'RGB':
+                                self.icon_image = self.icon_image.convert('RGB')
+                            # Resize to appropriate size for system tray
+                            self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                            self.log_message(f"✅ Using bundled {icon_name} for system tray icon")
+                            icon_found = True
+                            break
+                        except Exception as e:
+                            self.log_message(f"⚠️ Error loading bundled {icon_name}: {e}")
+                            continue
+                
+                if not icon_found:
+                    # For single-file executables, we can't access bundled files directly
+                    # Create a simple camera-like icon programmatically
+                    try:
+                        # Create a simple camera icon (black camera shape on white background)
+                        self.icon_image = Image.new('RGB', (64, 64), color='white')
+                        from PIL import ImageDraw
+                        draw = ImageDraw.Draw(self.icon_image)
+                        
+                        # Draw a simple camera shape
+                        # Camera body (rectangle)
+                        draw.rectangle([12, 20, 52, 44], fill='black', outline='black')
+                        # Camera lens (circle)
+                        draw.ellipse([24, 26, 40, 38], fill='white', outline='black')
+                        # Camera flash (small rectangle)
+                        draw.rectangle([20, 16, 28, 20], fill='black', outline='black')
+                        
+                        self.log_message("✅ Created programmatic camera icon for system tray")
+                        icon_found = True
+                    except Exception as e:
+                        self.log_message(f"⚠️ Error creating programmatic icon: {e}")
+                        # Create a simple colored square as fallback
+                        self.icon_image = Image.new('RGB', (64, 64), color='blue')
+                        self.log_message("⚠️ Using fallback blue square")
+            else:
+                # Running as script - try to load icon files from current directory
+                if os.path.exists("camera.ico"):
+                    self.icon_image = Image.open("camera.ico")
+                    # Convert to RGB for system tray compatibility
                     if self.icon_image.mode != 'RGB':
                         self.icon_image = self.icon_image.convert('RGB')
                     # Resize to appropriate size for system tray
                     self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
-                    self.log_message("✅ Using camera.png for system tray icon")
-                except Exception as e:
-                    self.log_message(f"⚠️ Error loading camera.png: {e}")
-                    raise e
-            elif os.path.exists("rust_controller.ico"):
-                try:
+                    self.log_message("✅ Using camera.ico for system tray icon")
+                elif os.path.exists("rust_controller.ico"):
                     self.icon_image = Image.open("rust_controller.ico")
-                    # Convert to RGB if it's not already
+                    # Convert to RGB for system tray compatibility
                     if self.icon_image.mode != 'RGB':
                         self.icon_image = self.icon_image.convert('RGB')
                     # Resize to appropriate size for system tray
                     self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
                     self.log_message("✅ Using rust_controller.ico for system tray icon")
-                except Exception as e:
-                    self.log_message(f"⚠️ Error loading rust_controller.ico: {e}")
-                    raise e
-            elif os.path.exists("rust_controller.png"):
-                try:
-                    self.icon_image = Image.open("rust_controller.png")
-                    # Convert to RGB if it's not already
-                    if self.icon_image.mode != 'RGB':
-                        self.icon_image = self.icon_image.convert('RGB')
-                    # Resize to appropriate size for system tray
-                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
-                    self.log_message("✅ Using rust_controller.png for system tray icon")
-                except Exception as e:
-                    self.log_message(f"⚠️ Error loading rust_controller.png: {e}")
-                    raise e
-            else:
-                # Create a simple colored square as fallback
-                self.icon_image = Image.new('RGB', (64, 64), color='blue')
-                self.log_message("⚠️ No icon files found, using fallback blue square")
+                else:
+                    # Create a simple colored square as fallback
+                    self.icon_image = Image.new('RGB', (64, 64), color='blue')
+                    self.log_message("⚠️ No .ico file found, using fallback blue square")
         except Exception as e:
             # Create a simple colored square as fallback
             self.icon_image = Image.new('RGB', (64, 64), color='blue')
