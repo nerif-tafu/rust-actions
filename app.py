@@ -2435,8 +2435,9 @@ def get_craftable_items():
     """Get only craftable items with ingredients from Steam database"""
     try:
         # Use the binds_manager to get properly filtered craftable items
+        controller = create_rust_controller()
         craftable_items = {}
-        for item in rust_controller.keyboard_manager.binds_manager.craftable_items:
+        for item in controller.keyboard_manager.binds_manager.craftable_items:
             item_id = item['id']
             # Get the full item data from steam_manager
             full_item = steam_manager.get_item_by_id(item_id)

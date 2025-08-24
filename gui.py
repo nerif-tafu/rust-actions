@@ -31,7 +31,6 @@ class RustControllerGUI:
     def __init__(self):
         # Variables
         self.server_running = False
-        self.server_process = None
         self.log_queue = queue.Queue()
         self.startup_enabled = self.check_startup_enabled()
         self.start_minimized_enabled = self.check_start_minimized_enabled()
@@ -86,22 +85,25 @@ class RustControllerGUI:
     
     def check_server_status(self):
         """Check if the server is actually running and responding"""
-        if not self.server_running or not self.server_process:
+        if not self.server_running:
             return False
         
         try:
-            # Check if process is still running
-            if self.server_process.poll() is not None:
+            # Check if server is responding
+            response = requests.get("http://localhost:5000/health", timeout=2)
+            if response.status_code == 200:
+                return True
+            else:
                 self.server_running = False
                 if hasattr(self, 'root') and self.root:
                     self.root.after_idle(lambda: self._update_server_status("Stopped"))
-                self.log_message("⚠️ Server process has stopped")
+                self.log_message("⚠️ Server is not responding")
                 return False
-            
-            # Try to connect to the server
-            response = requests.get("http://localhost:5000/health", timeout=2)
-            return response.status_code == 200
         except:
+            self.server_running = False
+            if hasattr(self, 'root') and self.root:
+                self.root.after_idle(lambda: self._update_server_status("Stopped"))
+            self.log_message("⚠️ Server is not responding")
             return False
     
     def _run_gui(self):
@@ -111,7 +113,7 @@ class RustControllerGUI:
         self.root.geometry("1200x700")
         self.root.minsize(1000, 500)
         
-        # Set icon if available
+        # Set window icon
         try:
             # Try to use camera.png as icon, convert to ICO if needed
             if os.path.exists("camera.png"):
@@ -127,10 +129,14 @@ class RustControllerGUI:
                     os.remove("camera_temp.ico")
                 except:
                     pass
-            else:
+                self.log_message("✅ Using camera.png for window icon")
+            elif os.path.exists("rust_controller.ico"):
                 self.root.iconbitmap("rust_controller.ico")
-        except:
-            pass
+                self.log_message("✅ Using rust_controller.ico for window icon")
+            else:
+                self.log_message("⚠️ No icon file found for window")
+        except Exception as e:
+            self.log_message(f"⚠️ Error setting window icon: {e}")
         
         # Create GUI
         self.create_widgets()
@@ -142,7 +148,7 @@ class RustControllerGUI:
         self.monitor_logs()
         
         # Handle window close and minimize
-        self.root.protocol("WM_DELETE_WINDOW", self.minimize_to_tray)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
         
         # Override minimize button to go to system tray
         self.root.bind("<Unmap>", self.on_minimize)
@@ -153,6 +159,14 @@ class RustControllerGUI:
         # Add keyboard shortcut for minimize to tray (Alt+M)
         self.root.bind("<Alt-m>", lambda e: self.minimize_to_tray())
         self.root.bind("<Alt-M>", lambda e: self.minimize_to_tray())
+        
+        # Add keyboard shortcut for exit (Ctrl+Q)
+        self.root.bind("<Control-q>", lambda e: self.quit_app())
+        self.root.bind("<Control-Q>", lambda e: self.quit_app())
+        
+        # Update server status since server is already running
+        if self.server_running:
+            self._update_server_status("Running")
         
         # Populate dropdowns immediately since server is ready
         self.refresh_item_dropdowns()
@@ -191,22 +205,6 @@ class RustControllerGUI:
                     if hasattr(self, 'root') and self.root:
                         self.root.after_idle(lambda: self._update_db_stats_display(stats_data))
                     last_stats_update = current_time
-                
-                # Monitor server output
-                if self.server_process and self.server_running:
-                    try:
-                        output = self.server_process.stdout.readline()
-                        if output:
-                            output = output.strip()
-                            
-                            # Filter out repetitive health check messages
-                            if "GET /health HTTP/1.1" in output:
-                                continue  # Skip health check logs
-                            
-                            # Add to log queue for GUI processing
-                            self.log_queue.put(output)
-                    except:
-                        pass
                 
                 # Check server status every 30 seconds
                 if current_time - last_server_check >= 30:
@@ -255,6 +253,8 @@ class RustControllerGUI:
         main_frame.columnconfigure(0, weight=1)  # Left column
         main_frame.columnconfigure(1, weight=1)  # Right column
         main_frame.rowconfigure(2, weight=1)     # Logs row
+        
+
         
         # Title
         title_label = ttk.Label(main_frame, text="Rust Game Controller API", 
@@ -1248,18 +1248,53 @@ class RustControllerGUI:
     
     def setup_system_tray(self):
         """Setup system tray icon and menu"""
-        # Create a simple icon (you can replace this with a proper icon file)
+        # Create system tray icon
         try:
-            # Try to load camera.png first, fallback to rust_controller.ico
+            # Try to load camera.png first
             if os.path.exists("camera.png"):
-                self.icon_image = Image.open("camera.png")
-                # Resize to appropriate size for system tray
-                self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                try:
+                    self.icon_image = Image.open("camera.png")
+                    # Convert to RGB if it's not already
+                    if self.icon_image.mode != 'RGB':
+                        self.icon_image = self.icon_image.convert('RGB')
+                    # Resize to appropriate size for system tray
+                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                    self.log_message("✅ Using camera.png for system tray icon")
+                except Exception as e:
+                    self.log_message(f"⚠️ Error loading camera.png: {e}")
+                    raise e
+            elif os.path.exists("rust_controller.ico"):
+                try:
+                    self.icon_image = Image.open("rust_controller.ico")
+                    # Convert to RGB if it's not already
+                    if self.icon_image.mode != 'RGB':
+                        self.icon_image = self.icon_image.convert('RGB')
+                    # Resize to appropriate size for system tray
+                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                    self.log_message("✅ Using rust_controller.ico for system tray icon")
+                except Exception as e:
+                    self.log_message(f"⚠️ Error loading rust_controller.ico: {e}")
+                    raise e
+            elif os.path.exists("rust_controller.png"):
+                try:
+                    self.icon_image = Image.open("rust_controller.png")
+                    # Convert to RGB if it's not already
+                    if self.icon_image.mode != 'RGB':
+                        self.icon_image = self.icon_image.convert('RGB')
+                    # Resize to appropriate size for system tray
+                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                    self.log_message("✅ Using rust_controller.png for system tray icon")
+                except Exception as e:
+                    self.log_message(f"⚠️ Error loading rust_controller.png: {e}")
+                    raise e
             else:
-                self.icon_image = Image.open("rust_controller.ico")
-        except:
+                # Create a simple colored square as fallback
+                self.icon_image = Image.new('RGB', (64, 64), color='blue')
+                self.log_message("⚠️ No icon files found, using fallback blue square")
+        except Exception as e:
             # Create a simple colored square as fallback
-            self.icon_image = Image.new('RGB', (64, 64), color='red')
+            self.icon_image = Image.new('RGB', (64, 64), color='blue')
+            self.log_message(f"⚠️ Error loading icon: {e}, using fallback blue square")
         
         # Create system tray menu
         menu = pystray.Menu(
@@ -1288,45 +1323,34 @@ class RustControllerGUI:
         try:
             self.log_message("Starting API server...")
             
-            # Start the server in a separate process
-            self.server_process = subprocess.Popen(
-                [sys.executable, "app.py"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-                cwd=os.path.dirname(os.path.abspath(__file__))  # Set working directory to script location
-            )
+            # Import and start Flask app directly instead of using subprocess
+            def run_flask_server():
+                try:
+                    from app import app
+                    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+                except Exception as e:
+                    self.log_message(f"❌ Flask server error: {e}")
+            
+            # Start Flask server in a separate thread
+            self.server_thread = threading.Thread(target=run_flask_server, daemon=True)
+            self.server_thread.start()
             
             # Wait a moment for the server to start
             time.sleep(2)
             
-            # Check if the server is actually running
-            if self.server_process.poll() is None:  # Process is still running
-                self.server_running = True
-                
-                # Update GUI if it's ready
-                if hasattr(self, 'root') and self.root:
-                    self.root.after_idle(lambda: self._update_server_status("Running"))
-                
-                self.log_message("✅ API server started successfully on http://localhost:5000")
-                
-                # Start monitoring server output in background
-                self.server_monitor_thread = threading.Thread(target=self._monitor_server_output, daemon=True)
-                self.server_monitor_thread.start()
-            else:
-                # Server failed to start - capture output to see what went wrong
-                self.log_message("❌ Server failed to start")
-                try:
-                    # Read any output from the failed process
-                    output, _ = self.server_process.communicate(timeout=1)
-                    if output:
-                        self.log_message(f"Server output: {output}")
-                except:
-                    pass
-                if hasattr(self, 'root') and self.root:
-                    self.root.after_idle(lambda: messagebox.showerror("Error", "Server failed to start. Check logs for details."))
+            # Check if the server is responding
+            try:
+                response = requests.get("http://localhost:5000/health", timeout=5)
+                if response.status_code == 200:
+                    self.server_running = True
+                    self.log_message("✅ API server started successfully on http://localhost:5000")
+                    # Update GUI status if GUI is ready
+                    if hasattr(self, 'root') and self.root:
+                        self.root.after_idle(lambda: self._update_server_status("Running"))
+                else:
+                    self.log_message("❌ Server started but not responding properly")
+            except:
+                self.log_message("❌ Server failed to start or respond")
             
         except Exception as e:
             self.log_message(f"❌ Failed to start server: {e}")
@@ -1343,6 +1367,7 @@ class RustControllerGUI:
             try:
                 response = requests.get("http://localhost:5000/health", timeout=2)
                 if response.status_code == 200:
+                    self.server_running = True
                     self.log_message("✅ Server is ready and responding")
                     return True
             except:
@@ -1382,10 +1407,8 @@ class RustControllerGUI:
             return
         
         try:
-            if self.server_process:
-                self.server_process.terminate()
-                self.server_process.wait(timeout=5)
-            
+            # For thread-based server, we can't easily stop it
+            # The thread will terminate when the main process ends
             self.server_running = False
             
             # Update GUI if it's ready
@@ -1398,33 +1421,6 @@ class RustControllerGUI:
             self.log_message(f"Failed to stop server: {e}")
             if hasattr(self, 'root') and self.root:
                 self.root.after_idle(lambda: messagebox.showerror("Error", f"Failed to stop server: {e}"))
-    
-    def _monitor_server_output(self):
-        """Monitor server process output in background thread"""
-        if not self.server_process:
-            return
-        
-        try:
-            for line in iter(self.server_process.stdout.readline, ''):
-                if line:
-                    # Use after_idle to update GUI from main thread
-                    if hasattr(self, 'root') and self.root:
-                        self.root.after_idle(lambda l=line: self.log_message(l.strip()))
-        except Exception as e:
-            if hasattr(self, 'root') and self.root:
-                self.root.after_idle(lambda: self.log_message(f"Error monitoring server output: {e}"))
-    
-    def monitor_server_output(self):
-        """Monitor server process output"""
-        if not self.server_process:
-            return
-        
-        try:
-            for line in iter(self.server_process.stdout.readline, ''):
-                if line:
-                    self.log_message(line.strip())
-        except Exception as e:
-            self.log_message(f"Error monitoring server output: {e}")
     
     def open_api(self):
         """Open the API in default browser"""
@@ -1638,13 +1634,38 @@ class RustControllerGUI:
         if self.tray_icon:
             self.tray_icon.visible = False
     
+    def on_window_close(self):
+        """Handle window close - ask user if they want to quit or minimize"""
+        if messagebox.askyesno("Exit Application", "Do you want to exit the application?\n\nClick 'Yes' to exit completely.\nClick 'No' to minimize to system tray."):
+            self.quit_app()
+        else:
+            self.minimize_to_tray()
+    
+    def show_about(self):
+        """Show about dialog"""
+        messagebox.showinfo("About", 
+                           "Rust Game Controller API\n\n"
+                           "Version: 1.0.0\n"
+                           "A tool for controlling Rust game through API commands.\n\n"
+                           "Features:\n"
+                           "• Inventory management\n"
+                           "• Crafting automation\n"
+                           "• Game controls\n"
+                           "• Steam integration\n\n"
+                           "Keyboard Shortcuts:\n"
+                           "• Ctrl+Q: Exit application\n"
+                           "• Alt+M: Minimize to tray")
+    
     def quit_app(self, icon=None, item=None):
         """Quit the application"""
+        self.shutdown_event.set()
         self.stop_server()
         if self.tray_icon:
             self.tray_icon.visible = False
             self.tray_icon.stop()
         self.root.quit()
+        # Force exit the process
+        os._exit(0)
     
     def check_steam_login_status(self):
         """Check Steam login status"""
@@ -1743,6 +1764,8 @@ class RustControllerGUI:
             # Refresh database stats
             stats_data = self._fetch_database_stats()
             self._update_db_stats_display(stats_data)
+            # Automatically refresh the crafting dropdowns with new data
+            self.refresh_item_dropdowns()
         else:
             if result.get("requireSteamLogin"):
                 self.progress_label_var.set("Steam login required")
@@ -1826,15 +1849,12 @@ def main():
     # Register cleanup function
     def cleanup():
         app.shutdown_event.set()
-        if app.server_process:
-            app.server_process.terminate()
     
     atexit.register(cleanup)
     
     try:
-        # Keep main thread alive
-        while not app.shutdown_event.is_set():
-            time.sleep(1)
+        # Start the GUI application
+        app.run()
     except KeyboardInterrupt:
         print("Shutting down...")
     finally:

@@ -19,7 +19,7 @@ A simple Python REST API for controlling actions in the game "Rust". This API pr
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd companion-module-rust-actions
+cd rust-actions
 ```
 
 2. Install dependencies:
@@ -29,17 +29,14 @@ pip install -r requirements.txt
 
 3. Run the application:
 
-**Option 1: GUI Application (Recommended)**
+**GUI Application (Recommended)**
 ```bash
 python gui.py
 ```
 
-**Option 2: Command Line Only**
-```bash
-python app.py
-```
-
 The API will be available at `http://localhost:5000`
+
+**Note**: The GUI application includes the API server and provides a user-friendly interface for testing all endpoints.
 
 ## API Endpoints
 
@@ -547,33 +544,53 @@ All endpoints return JSON responses with the following structure:
 }
 ```
 
-## PyInstaller Packaging
+## Building the Executable
 
-To package the application with PyInstaller:
+To create a standalone executable of the application:
+
+### Prerequisites
 
 1. Install PyInstaller:
 ```bash
 pip install pyinstaller
 ```
 
-2. Create the icon:
+2. Ensure you have the required files:
+   - `camera.png` (application icon)
+
+### Build Process
+
+1. **Build the executable:**
 ```bash
-python create_icon.py
+pyinstaller --onefile --windowed --icon=camera.png --name=RustGameController gui.py
 ```
 
-3. Create the executable:
-
-**For GUI Application (Recommended):**
+2. **Run the executable:**
 ```bash
-pyinstaller rust_controller_gui.spec
+cd dist
+RustGameController.exe
 ```
 
-**For Command Line Only:**
-```bash
-pyinstaller rust_controller.spec
-```
+### Build Options Explained
 
-The executable will be created in the `dist` folder.
+- `--onefile`: Creates a single executable file
+- `--windowed`: Runs without a console window (GUI only)
+- `--icon=camera.png`: Uses camera.png as the application icon
+- `--name=RustGameController`: Names the executable "RustGameController.exe"
+
+### Data Storage
+
+The application stores data in `~/Documents/Rust-Actions/` folder:
+- `itemDatabase.json` - Item database
+- `steamCredentials.json` - Steam login credentials
+- `images/` - Steam item images
+- `rustclient/` - Rust client files
+- `steamcmd/` - SteamCMD installation
+
+### Troubleshooting
+
+- **Permission Error**: Close any running instances of the application before rebuilding
+- **UnityPy Issues**: The application handles missing UnityPy gracefully (optional dependency)
 
 ### GUI Features
 
@@ -589,26 +606,25 @@ The GUI application provides:
 
 ### Project Structure
 ```
-companion-module-rust-actions/
+rust-actions/
 ├── app.py                    # Main Flask application
 ├── gui.py                    # GUI application with system tray
-├── item_database.py          # Item database management
 ├── steam_manager.py          # Steam integration and SteamCMD management
-├── create_icon.py            # Icon generation script
+├── unitypy_extractor.py      # Unity asset extraction (optional)
+├── keyboard_manager.py       # Keyboard input simulation
+├── binds_manager.py          # Rust binds management
 ├── requirements.txt          # Python dependencies
-├── rust_controller.spec      # PyInstaller spec for CLI version
-├── rust_controller_gui.spec  # PyInstaller spec for GUI version
-├── rust_items.json          # Item database file (auto-generated)
-├── item_pictures/           # Item pictures directory (auto-generated)
-├── data/                    # Steam data directory (auto-generated)
-│   ├── steamcmd/           # SteamCMD installation
-│   ├── rustclient/         # Rust client files
-│   ├── images/             # Steam item images
-│   ├── itemDatabase.json   # Steam item database
-│   └── steamCredentials.json # Steam credentials
+├── camera.png               # Application icon
+├── data/                    # Data directory (auto-generated)
+│   └── itemDatabase.json   # Item database (migrated to Documents)
+├── dist/                    # Build output directory (auto-generated)
+│   ├── RustGameController.exe # Executable
+│   └── data/               # Data folder for executable
 ├── README.md                # This file
 └── .gitignore               # Git ignore file
 ```
+
+**Note**: Application data is now stored in `~/Documents/Rust-Actions/` for better user experience and persistence.
 
 ### Adding New Endpoints
 

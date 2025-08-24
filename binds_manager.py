@@ -12,9 +12,13 @@ logger = logging.getLogger(__name__)
 class BindsManager:
     def __init__(self, keys_cfg_path: str = r"c:\Program Files (x86)\Steam\steamapps\common\Rust\cfg\keys.cfg"):
         self.keys_cfg_path = keys_cfg_path
-        # Use absolute path for item database to ensure it works when running as subprocess
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        self.item_database_path = os.path.join(current_dir, "data", "itemDatabase.json")
+        # Use Documents/Rust-Actions folder for data storage
+        documents_path = os.path.expanduser("~/Documents")
+        self.data_dir = os.path.join(documents_path, "Rust-Actions")
+        self.item_database_path = os.path.join(self.data_dir, "itemDatabase.json")
+        
+        # Ensure the data directory exists
+        os.makedirs(self.data_dir, exist_ok=True)
         
         # Available keys for binds
         self.available_keys = [

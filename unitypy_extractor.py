@@ -7,9 +7,18 @@ import os
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
-import UnityPy
+
+# Make UnityPy import optional
+try:
+    import UnityPy
+    UNITYPY_AVAILABLE = True
+    UnityPyEnvironment = UnityPy.Environment
+except ImportError:
+    UnityPy = None
+    UNITYPY_AVAILABLE = False
+    UnityPyEnvironment = Any  # Type hint fallback
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +52,13 @@ class UnityPyExtractor:
         
     def extract_crafting_data(self, bundle_path: Path) -> Dict[str, Any]:
         """Main method to extract all crafting data from a bundle file using UnityPy"""
+        if not UNITYPY_AVAILABLE:
+            logger.warning("UnityPy is not available. Unity asset extraction is disabled.")
+            return {
+                "success": False, 
+                "error": "UnityPy is not available in this build. Unity asset extraction is disabled."
+            }
+            
         try:
             logger.info("Starting UnityPy extraction for crafting data...")
             
@@ -99,8 +115,12 @@ class UnityPyExtractor:
             logger.error(f"Failed to extract crafting data with UnityPy: {e}")
             return {"success": False, "error": str(e)}
     
-    def extract_item_definitions(self, env: UnityPy.Environment) -> Dict[str, Dict]:
+    def extract_item_definitions(self, env: UnityPyEnvironment) -> Dict[str, Dict]:
         """Extract ItemDefinition objects using UnityPy"""
+        if not UNITYPY_AVAILABLE:
+            logger.warning("UnityPy is not available. Cannot extract item definitions.")
+            return {}
+            
         item_definitions = {}
         
         try:
@@ -148,8 +168,12 @@ class UnityPyExtractor:
             logger.error(f"Failed to extract item definitions: {e}")
             return {}
     
-    def extract_crafting_recipes(self, env: UnityPy.Environment, item_definitions: Dict[str, Dict]) -> List[CraftingRecipe]:
+    def extract_crafting_recipes(self, env: UnityPyEnvironment, item_definitions: Dict[str, Dict]) -> List[CraftingRecipe]:
         """Extract ItemBlueprint objects using UnityPy - Comprehensive approach"""
+        if not UNITYPY_AVAILABLE:
+            logger.warning("UnityPy is not available. Cannot extract crafting recipes.")
+            return []
+            
         recipes = []
         
         try:

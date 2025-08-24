@@ -22,7 +22,12 @@ logger = logging.getLogger(__name__)
 class SteamManager:
     """Manages SteamCMD operations and Rust client downloads"""
     
-    def __init__(self, data_dir: str = "data"):
+    def __init__(self, data_dir: str = None):
+        if data_dir is None:
+            # Use Documents/Rust-Actions folder for data storage
+            documents_path = os.path.expanduser("~/Documents")
+            data_dir = os.path.join(documents_path, "Rust-Actions")
+        
         self.data_dir = Path(data_dir)
         self.database_path = self.data_dir / "itemDatabase.json"
         self.images_dir = self.data_dir / "images"
@@ -69,6 +74,47 @@ class SteamManager:
         for dir_path in dirs_to_create:
             dir_path.mkdir(parents=True, exist_ok=True)
             logger.debug(f"Ensured directory exists: {dir_path}")
+    
+    def migrate_from_old_location(self):
+        """Migrate data from old data folder to Documents/Rust-Actions"""
+        try:
+            # Check if we're running from the old location (where data folder exists)
+            old_data_dir = Path("data")
+            if old_data_dir.exists():
+                logger.info("Found old data folder, migrating to Documents/Rust-Actions...")
+                
+                # Copy itemDatabase.json if it exists
+                old_database = old_data_dir / "itemDatabase.json"
+                if old_database.exists() and not self.database_path.exists():
+                    import shutil
+                    shutil.copy2(old_database, self.database_path)
+                    logger.info(f"Migrated itemDatabase.json to {self.database_path}")
+                
+                # Copy images folder if it exists
+                old_images = old_data_dir / "images"
+                if old_images.exists() and not self.images_dir.exists():
+                    import shutil
+                    shutil.copytree(old_images, self.images_dir)
+                    logger.info(f"Migrated images folder to {self.images_dir}")
+                
+                # Copy steamcmd folder if it exists
+                old_steamcmd = old_data_dir / "steamcmd"
+                if old_steamcmd.exists() and not self.steamcmd_dir.exists():
+                    import shutil
+                    shutil.copytree(old_steamcmd, self.steamcmd_dir)
+                    logger.info(f"Migrated steamcmd folder to {self.steamcmd_dir}")
+                
+                # Copy rustclient folder if it exists
+                old_rustclient = old_data_dir / "rustclient"
+                if old_rustclient.exists() and not self.rust_client_path.exists():
+                    import shutil
+                    shutil.copytree(old_rustclient, self.rust_client_path)
+                    logger.info(f"Migrated rustclient folder to {self.rust_client_path}")
+                
+                logger.info("Migration completed successfully")
+                
+        except Exception as e:
+            logger.error(f"Error during migration: {e}")
     
     def load_saved_credentials(self):
         """Load saved Steam credentials"""
