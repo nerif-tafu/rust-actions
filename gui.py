@@ -262,6 +262,9 @@ class RustControllerGUI:
     
     def create_widgets(self):
         """Create the main GUI widgets"""
+        # Create menu bar
+        self.create_menu_bar()
+        
         # Main frame
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -271,55 +274,16 @@ class RustControllerGUI:
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)  # Left column
         main_frame.columnconfigure(1, weight=1)  # Right column
-        main_frame.rowconfigure(2, weight=1)     # Logs row
-        
-
+        main_frame.rowconfigure(1, weight=1)     # Logs row
         
         # Title
         title_label = ttk.Label(main_frame, text="Rust Game Controller API", 
                                font=("Arial", 16, "bold"))
         title_label.grid(row=0, column=0, columnspan=2, pady=(0, 10))
         
-        # Status frame
-        status_frame = ttk.LabelFrame(main_frame, text="Server Status", padding="5")
-        status_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
-        
-        # Status indicator
-        self.status_var = tk.StringVar(value="Stopped")
-        self.status_label = ttk.Label(status_frame, textvariable=self.status_var)
-        self.status_label.grid(row=0, column=0, padx=(0, 10))
-        
-        # Server controls
-        self.start_button = ttk.Button(status_frame, text="Start Server", 
-                                      command=self.start_server)
-        self.start_button.grid(row=0, column=1, padx=5)
-        
-        self.stop_button = ttk.Button(status_frame, text="Stop Server", 
-                                     command=self.stop_server, state="disabled")
-        self.stop_button.grid(row=0, column=2, padx=5)
-        
-        # Open API button
-        open_api_button = ttk.Button(status_frame, text="Open API", 
-                                    command=self.open_api)
-        open_api_button.grid(row=0, column=3, padx=5)
-        
-        # Startup checkbox
-        self.startup_var = tk.BooleanVar(value=self.startup_enabled)
-        startup_check = ttk.Checkbutton(status_frame, text="Start with Windows", 
-                                       variable=self.startup_var, 
-                                       command=self.toggle_startup)
-        startup_check.grid(row=0, column=4, padx=(20, 5))
-        
-        # Start minimized checkbox
-        self.start_minimized_var = tk.BooleanVar(value=self.start_minimized_enabled)
-        start_minimized_check = ttk.Checkbutton(status_frame, text="Start Minimized", 
-                                               variable=self.start_minimized_var, 
-                                               command=self.toggle_start_minimized)
-        start_minimized_check.grid(row=0, column=5, padx=(0, 0))
-        
         # Logs frame (left column)
         logs_frame = ttk.LabelFrame(main_frame, text="Server Logs", padding="5")
-        logs_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10), padx=(0, 5))
+        logs_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10), padx=(0, 5))
         logs_frame.columnconfigure(0, weight=1)
         logs_frame.rowconfigure(0, weight=1)
         
@@ -350,7 +314,7 @@ class RustControllerGUI:
         
         # Info frame (left column)
         info_frame = ttk.LabelFrame(main_frame, text="Information", padding="5")
-        info_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 10), padx=(0, 5))
+        info_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 10), padx=(0, 5))
         
         # API info
         api_info = ttk.Label(info_frame, 
@@ -368,7 +332,7 @@ class RustControllerGUI:
         
         # Steam Login frame (left column)
         steam_frame = ttk.LabelFrame(main_frame, text="Steam Integration", padding="5")
-        steam_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 10), padx=(0, 5))
+        steam_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 10), padx=(0, 5))
         
         # Steam status
         self.steam_status_var = tk.StringVar(value="Checking Steam login...")
@@ -406,21 +370,696 @@ class RustControllerGUI:
         progress_label = ttk.Label(steam_frame, textvariable=self.progress_label_var)
         progress_label.grid(row=3, column=0, columnspan=6, sticky=(tk.W, tk.E), pady=(2, 0))
         
-        # API Testing Panel (right column)
+        # API Testing Panel (right column) - hidden by default
+        self.api_panel_visible = False
         self.create_api_testing_panel(main_frame)
+    
+    def create_menu_bar(self):
+        """Create the menu bar with Server, API, and Launch options"""
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
         
+        # Server menu
+        server_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Server", menu=server_menu)
+        server_menu.add_command(label="Start Server", command=self.start_server)
+        server_menu.add_command(label="Stop Server", command=self.stop_server)
+        
+        # API menu
+        api_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="API", menu=api_menu)
+        api_menu.add_command(label="Show API Testing Panel", command=self.toggle_api_panel)
+        api_menu.add_separator()
+        api_menu.add_command(label="Open API in Browser", command=self.open_api)
+        
+        # Launch menu
+        launch_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Launch", menu=launch_menu)
+        
+        # Startup toggle
+        launch_menu.add_command(label="Start on Boot: Disabled", command=self.toggle_startup)
+        
+        # Start minimized toggle
+        launch_menu.add_command(label="Start Minimized: Disabled", command=self.toggle_start_minimized)
+        
+        # Store references for updating menu states
+        self.server_menu = server_menu
+        self.api_menu = api_menu
+        self.launch_menu = launch_menu
+        
+        # Update menu labels to reflect current state
+        self.update_menu_labels()
+    
+    def test_api_call(self, action, params):
+        """Make an API call to test the game control endpoints"""
+        if not self.server_running:
+            messagebox.showwarning("Warning", "Server is not running. Please start the server first.")
+            return
+        
+        # Check if server is actually responding
+        if not self.check_server_status():
+            messagebox.showwarning("Warning", "Server is not responding. Please check the server status.")
+            return
+        
+        # Get the command delay from the GUI
+        try:
+            delay_ms = int(self.command_delay_var.get())
+            if delay_ms > 0:
+                # Log that command is being delayed
+                self.log_message(f"Command delayed: {action.replace('_', ' ').title()} will execute in {delay_ms}ms")
+                # Schedule the API call with delay
+                self.root.after(delay_ms, lambda: self._execute_api_call(action, params))
+                return
+            elif delay_ms < 0:
+                # Log warning for negative delay
+                self.log_message(f"Warning: Negative delay ({delay_ms}ms) ignored, executing immediately")
+        except ValueError:
+            # If delay is not a valid number, use 0
+            pass
+        
+        # Execute immediately if no delay or negative delay
+        # Show info for long-running operations
+        if action in ["stack_inventory", "cancel_all_crafting", "toggle_stack_inventory"]:
+            self.log_message(f"⏳ Starting {action.replace('_', ' ').title()} - this may take up to 2 minutes...")
+        
+        # Run API call in background thread to prevent GUI freezing
+        threading.Thread(target=self._execute_api_call, args=(action, params), daemon=True).start()
+    
+    def _execute_api_call(self, action, params):
+        """Execute the actual API call"""
+        try:
+            import json
+            
+            # Map action names to API endpoints
+            endpoint_map = {
+                "craft": "/craft/name",  # Changed from /craft to /craft/name
+                "cancel_craft": "/craft/cancel/name",  # Changed from /craft/cancel to /craft/cancel/name
+                "cancel_all_crafting": "/craft/cancel-all",
+                "suicide": "/player/suicide",
+                "kill": "/player/kill",
+                "respawn": "/player/respawn",
+                "respawn_only": "/player/respawn-only",
+                "respawn_random": "/player/respawn-random",
+                "respawn_bed": "/player/respawn-bed",
+                "gesture": "/player/gesture",
+                "auto_run": "/player/auto-run",
+                "auto_run_jump": "/player/auto-run-jump",
+                "auto_crouch_attack": "/player/auto-crouch-attack",
+                "global_chat": "/chat/global",
+                "team_chat": "/chat/team",
+                "quit_game": "/game/quit",
+                "disconnect": "/game/disconnect",
+                "connect": "/game/connect",
+                "stack_inventory": "/inventory/stack",
+                "set_look_radius": "/settings/look-radius",
+                "set_voice_volume": "/settings/voice-volume",
+                "set_master_volume": "/settings/master-volume",
+                "set_hud_state": "/settings/hud",  # Changed from /settings/hud-state to /settings/hud
+                "copy_json": "/clipboard/copy-json",
+                "type_string": "/input/type-enter",  # Changed from /input/type to /input/type-enter
+                "start_anti_afk": "/anti-afk/start",
+                "stop_anti_afk": "/anti-afk/stop",
+                "toggle_stack_inventory": "/inventory/toggle-stack",
+                "noclip_toggle": "/player/noclip",
+                "god_mode_toggle": "/player/god-mode",
+                "set_time": "/player/set-time",
+                "teleport_to_marker": "/player/teleport-marker",
+                "toggle_combat_log": "/player/combat-log",
+                "clear_console": "/player/clear-console",
+                "toggle_console": "/player/toggle-console"
+            }
+            
+            endpoint = endpoint_map.get(action)
+            if not endpoint:
+                messagebox.showerror("Error", f"Unknown action: {action}")
+                return
+            
+            url = f"http://localhost:5000{endpoint}"
+            
+            # Determine timeout based on action type
+            # Long-running operations need more time
+            if action in ["stack_inventory", "cancel_all_crafting", "toggle_stack_inventory"]:
+                timeout = 120  # 2 minutes for long operations
+            else:
+                timeout = 5    # 5 seconds for regular operations
+            
+            # Prepare the request
+            if params:
+                # Filter out empty values
+                filtered_params = {k: v for k, v in params.items() if v is not None and v != ""}
+                if filtered_params:
+                    response = requests.post(url, json=filtered_params, timeout=timeout)
+                else:
+                    response = requests.post(url, timeout=timeout)
+            else:
+                response = requests.post(url, timeout=timeout)
+            
+            if response.status_code == 200:
+                result = response.json()
+                # Debug logging to see what the API returns
+                self.log_message(f"DEBUG: API Response for {action}: {result}")
+                if result.get('success'):
+                    # Log success to server logs instead of showing popup
+                    self.log_message(f"API Success: {action.replace('_', ' ').title()} - {result.get('message', 'Action completed successfully')}")
+                else:
+                    # Use after_idle for GUI updates from background thread
+                    self.root.after_idle(lambda: messagebox.showerror("API Error", f"{action.replace('_', ' ').title()}: {result.get('message', 'Unknown error')}"))
+            else:
+                # Use after_idle for GUI updates from background thread
+                self.root.after_idle(lambda: messagebox.showerror("HTTP Error", f"Server returned status code {response.status_code}"))
+                
+        except requests.exceptions.ConnectionError:
+            # Use after_idle for GUI updates from background thread
+            self.root.after_idle(lambda: messagebox.showerror("Connection Error", "Could not connect to the server. Make sure it's running."))
+        except requests.exceptions.Timeout:
+            # Use after_idle for GUI updates from background thread
+            self.root.after_idle(lambda: messagebox.showerror("Timeout Error", "Request timed out. The server may be busy."))
+        except Exception as e:
+            # Use after_idle for GUI updates from background thread
+            self.root.after_idle(lambda: messagebox.showerror("Error", f"An error occurred: {str(e)}"))
+    
+    def generate_curl_command(self, action, params):
+        """Generate a Windows PowerShell compatible command for the given API call"""
+        # Map action names to API endpoints
+        endpoint_map = {
+            "craft": "/craft/name",
+            "cancel_craft": "/craft/cancel/name",
+            "cancel_all_crafting": "/craft/cancel-all",
+            "suicide": "/player/suicide",
+            "kill": "/player/kill",
+            "respawn": "/player/respawn",
+            "respawn_only": "/player/respawn-only",
+            "respawn_random": "/player/respawn-random",
+            "respawn_bed": "/player/respawn-bed",
+            "gesture": "/player/gesture",
+            "auto_run": "/player/auto-run",
+            "auto_run_jump": "/player/auto-run-jump",
+            "auto_crouch_attack": "/player/auto-crouch-attack",
+            "global_chat": "/chat/global",
+            "team_chat": "/chat/team",
+            "quit_game": "/game/quit",
+            "disconnect": "/game/disconnect",
+            "connect": "/game/connect",
+            "stack_inventory": "/inventory/stack",
+            "set_look_radius": "/settings/look-radius",
+            "set_voice_volume": "/settings/voice-volume",
+            "set_master_volume": "/settings/master-volume",
+            "set_hud_state": "/settings/hud",
+            "copy_json": "/clipboard/copy-json",
+            "type_string": "/input/type-enter",
+            "toggle_stack_inventory": "/inventory/toggle-stack",
+            "noclip_toggle": "/player/noclip",
+            "god_mode_toggle": "/player/god-mode",
+            "set_time": "/player/set-time",
+            "teleport_to_marker": "/player/teleport-marker",
+            "toggle_combat_log": "/player/combat-log",
+            "clear_console": "/player/clear-console",
+            "toggle_console": "/player/toggle-console"
+        }
+        
+        endpoint = endpoint_map.get(action)
+        if not endpoint:
+            return None
+        
+        url = f"http://localhost:5000{endpoint}"
+        
+        # Build the PowerShell command
+        ps_cmd = f'Invoke-WebRequest -Uri "{url}" -Method POST'
+        
+        # Add headers
+        ps_cmd += ' -Headers @{"Content-Type"="application/json"}'
+        
+        # Add JSON data if there are parameters
+        if params:
+            # Filter out empty values
+            filtered_params = {k: v for k, v in params.items() if v is not None and v != ""}
+            if filtered_params:
+                import json
+                json_data = json.dumps(filtered_params)
+                # For PowerShell, we need to escape single quotes and use single quotes around the JSON
+                json_data = json_data.replace("'", "''")
+                ps_cmd += f" -Body '{json_data}'"
+        
+        return ps_cmd
+    
+    def copy_curl_to_clipboard(self, action, params):
+        """Generate PowerShell command and copy to clipboard"""
+        ps_cmd = self.generate_curl_command(action, params)
+        if ps_cmd:
+            try:
+                pyperclip.copy(ps_cmd)
+                self.log_message(f"✅ PowerShell command copied to clipboard: {action.replace('_', ' ').title()}")
+            except Exception as e:
+                messagebox.showerror("Clipboard Error", f"Failed to copy to clipboard: {str(e)}")
+        else:
+            messagebox.showerror("Error", f"Could not generate PowerShell command for action: {action}")
 
     
+
+    
+
+    
+    def refresh_item_dropdowns(self):
+        """Refresh the item dropdowns with data from the database"""
+        try:
+            # Get craftable items from the Steam database (only items with ingredients)
+            response = requests.get("http://localhost:5000/steam/craftable-items", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success') and data.get('items'):
+                    # Extract item names and sort them
+                    item_names = []
+                    items_dict = data['items']
+                    
+                    # Handle dictionary format from steam_manager.get_all_items()
+                    for item_id, item_data in items_dict.items():
+                        if isinstance(item_data, dict):
+                            name = item_data.get('name', '')
+                            if name and name not in item_names:
+                                item_names.append(name)
+                    
+                    item_names.sort()  # Sort alphabetically
+                    
+                    # Update both dropdowns
+                    self.craft_name_combo['values'] = item_names
+                    self.cancel_name_combo['values'] = item_names
+                    
+                    # Set default values if empty
+                    if not self.craft_name_var.get() and item_names:
+                        self.craft_name_var.set(item_names[0])
+                    if not self.cancel_name_var.get() and item_names:
+                        self.cancel_name_var.set(item_names[0])
+                    
+                    # Log success to server logs instead of showing popup
+                    self.log_message(f"Dropdown Refresh: Loaded {len(item_names)} craftable items into dropdowns")
+                else:
+                    messagebox.showwarning("Warning", "No craftable items found in database")
+            else:
+                messagebox.showerror("Error", f"Failed to load craftable items: HTTP {response.status_code}")
+                
+        except requests.exceptions.ConnectionError:
+            messagebox.showerror("Connection Error", "Could not connect to the server. Make sure it's running.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to refresh dropdowns: {str(e)}")
+            # Log the full error for debugging
+            import traceback
+            print(f"Full error: {traceback.format_exc()}")
+    
+    def start_anti_afk(self):
+        """Start the anti-AFK feature"""
+        try:
+            response = requests.post("http://localhost:5000/anti-afk/start", timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    self.anti_afk_status_var.set("Status: Running")
+                    self.log_message("✅ Anti-AFK started successfully")
+                else:
+                    self.log_message(f"❌ Failed to start Anti-AFK: {result.get('message', 'Unknown error')}")
+            else:
+                self.log_message(f"❌ HTTP Error {response.status_code} when starting Anti-AFK")
+        except Exception as e:
+            self.log_message(f"❌ Error starting Anti-AFK: {str(e)}")
+    
+    def stop_anti_afk(self):
+        """Stop the anti-AFK feature"""
+        try:
+            response = requests.post("http://localhost:5000/anti-afk/stop", timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    self.anti_afk_status_var.set("Status: Stopped")
+                    self.log_message("✅ Anti-AFK stopped successfully")
+                else:
+                    self.log_message(f"❌ Failed to stop Anti-AFK: {result.get('message', 'Unknown error')}")
+            else:
+                self.log_message(f"❌ HTTP Error {response.status_code} when stopping Anti-AFK")
+        except Exception as e:
+            self.log_message(f"❌ Error stopping Anti-AFK: {str(e)}")
+    
+    def check_anti_afk_status(self):
+        """Check the current anti-AFK status"""
+        try:
+            response = requests.get("http://localhost:5000/anti-afk/status", timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    is_running = result.get('running', False)
+                    if is_running:
+                        self.anti_afk_status_var.set("Status: Running")
+                        self.log_message("✅ Anti-AFK is currently running")
+                    else:
+                        self.anti_afk_status_var.set("Status: Stopped")
+                        self.log_message("ℹ️ Anti-AFK is not running")
+                else:
+                    self.log_message(f"❌ Failed to get Anti-AFK status: {result.get('message', 'Unknown error')}")
+            else:
+                self.log_message(f"❌ HTTP Error {response.status_code} when checking Anti-AFK status")
+        except Exception as e:
+            self.log_message(f"❌ Error checking Anti-AFK status: {str(e)}")
+    
+    def setup_system_tray(self):
+        """Setup system tray icon and menu"""
+        # Create system tray icon - standard approach
+        try:
+            # Check if we're running as an executable
+            if getattr(sys, 'frozen', False):
+                # Running as executable - try to load bundled icon files
+                # For single-file executables, files are in sys._MEIPASS
+                base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
+                
+                # Try to load icon from bundled files
+                icon_found = False
+                for icon_name in ["camera.ico", "camera.png", "rust_controller.ico", "rust_controller.png"]:
+                    icon_path = os.path.join(base_path, icon_name)
+                    if os.path.exists(icon_path):
+                        try:
+                            self.icon_image = Image.open(icon_path)
+                            # Convert to RGB for system tray compatibility
+                            if self.icon_image.mode != 'RGB':
+                                self.icon_image = self.icon_image.convert('RGB')
+                            # Resize to appropriate size for system tray
+                            self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                            self.log_message(f"✅ Using bundled {icon_name} for system tray icon")
+                            icon_found = True
+                            break
+                        except Exception as e:
+                            self.log_message(f"⚠️ Error loading bundled {icon_name}: {e}")
+                            continue
+                
+                if not icon_found:
+                    # For single-file executables, we can't access bundled files directly
+                    # Create a simple camera-like icon programmatically
+                    try:
+                        # Create a simple camera icon (black camera shape on white background)
+                        self.icon_image = Image.new('RGB', (64, 64), color='white')
+                        from PIL import ImageDraw
+                        draw = ImageDraw.Draw(self.icon_image)
+                        
+                        # Draw a simple camera shape
+                        # Camera body (rectangle)
+                        draw.rectangle([12, 20, 52, 44], fill='black', outline='black')
+                        # Camera lens (circle)
+                        draw.ellipse([24, 26, 40, 38], fill='white', outline='black')
+                        # Camera flash (small rectangle)
+                        draw.rectangle([20, 16, 28, 20], fill='black', outline='black')
+                        
+                        self.log_message("✅ Created programmatic camera icon for system tray")
+                        icon_found = True
+                    except Exception as e:
+                        self.log_message(f"⚠️ Error creating programmatic icon: {e}")
+                        # Create a simple colored square as fallback
+                        self.icon_image = Image.new('RGB', (64, 64), color='blue')
+                        self.log_message("⚠️ Using fallback blue square")
+            else:
+                # Running as script - try to load icon files from current directory
+                if os.path.exists("camera.ico"):
+                    self.icon_image = Image.open("camera.ico")
+                    # Convert to RGB for system tray compatibility
+                    if self.icon_image.mode != 'RGB':
+                        self.icon_image = self.icon_image.convert('RGB')
+                    # Resize to appropriate size for system tray
+                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                    self.log_message("✅ Using camera.ico for system tray icon")
+                elif os.path.exists("rust_controller.ico"):
+                    self.icon_image = Image.open("rust_controller.ico")
+                    # Convert to RGB for system tray compatibility
+                    if self.icon_image.mode != 'RGB':
+                        self.icon_image = self.icon_image.convert('RGB')
+                    # Resize to appropriate size for system tray
+                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                    self.log_message("✅ Using rust_controller.ico for system tray icon")
+                else:
+                    # Create a simple colored square as fallback
+                    self.icon_image = Image.new('RGB', (64, 64), color='blue')
+                    self.log_message("⚠️ No .ico file found, using fallback blue square")
+        except Exception as e:
+            # Create a simple colored square as fallback
+            self.icon_image = Image.new('RGB', (64, 64), color='blue')
+            self.log_message(f"⚠️ Error loading icon: {e}, using fallback blue square")
+        
+        # Create system tray menu
+        menu = pystray.Menu(
+            item('Show Window', self.show_window),
+            item('Start Server', self.start_server),
+            item('Stop Server', self.stop_server),
+            pystray.Menu.SEPARATOR,
+            item('Open API', self.open_api),
+            pystray.Menu.SEPARATOR,
+            item('Exit', self.quit_app)
+        )
+        
+        # Create system tray icon
+        self.tray_icon = pystray.Icon("camera_controller", self.icon_image, 
+                                     "Rust Game Controller API", menu)
+        
+        # Start system tray in a separate thread
+        self.tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
+        self.tray_thread.start()
+    
+    def start_server(self):
+        """Start the Flask server"""
+        if self.server_running:
+            return
+        
+        try:
+            self.log_message("Starting API server...")
+            
+            # Import and start Flask app directly instead of using subprocess
+            def run_flask_server():
+                try:
+                    from app import app
+                    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+                except Exception as e:
+                    self.log_message(f"❌ Flask server error: {e}")
+            
+            # Start Flask server in a separate thread
+            self.server_thread = threading.Thread(target=run_flask_server, daemon=True)
+            self.server_thread.start()
+            
+            # Wait a moment for the server to start
+            time.sleep(2)
+            
+            # Check if the server is responding
+            try:
+                response = requests.get("http://localhost:5000/health", timeout=5)
+                if response.status_code == 200:
+                    self.server_running = True
+                    self.log_message("✅ API server started successfully on http://localhost:5000")
+                    # Update GUI status if GUI is ready
+                    if hasattr(self, 'root') and self.root:
+                        self.root.after_idle(lambda: self._update_server_status("Running"))
+                else:
+                    self.log_message("❌ Server started but not responding properly")
+            except:
+                self.log_message("❌ Server failed to start or respond")
+            
+        except Exception as e:
+            self.log_message(f"❌ Failed to start server: {e}")
+            if hasattr(self, 'root') and self.root:
+                self.root.after_idle(lambda: messagebox.showerror("Error", f"Failed to start server: {e}"))
+    
+    def wait_for_server_ready(self):
+        """Wait for the server to be fully ready and responding"""
+        self.log_message("Waiting for server to be ready...")
+        max_attempts = 30  # Wait up to 30 seconds
+        attempt = 0
+        
+        while attempt < max_attempts:
+            try:
+                response = requests.get("http://localhost:5000/health", timeout=2)
+                if response.status_code == 200:
+                    self.server_running = True
+                    self.log_message("✅ Server is ready and responding")
+                    return True
+            except:
+                pass
+            
+            attempt += 1
+            time.sleep(1)
+            if attempt % 5 == 0:  # Log every 5 seconds
+                self.log_message(f"Still waiting for server... ({attempt}s)")
+        
+        self.log_message("❌ Server failed to become ready within timeout")
+        return False
+    
+    def _test_server_health(self):
+        """Test if the server is responding"""
+        try:
+            response = requests.get("http://localhost:5000/health", timeout=5)
+            if response.status_code == 200:
+                self.log_message("✅ Server health check passed")
+            else:
+                self.log_message(f"⚠️ Server health check failed: {response.status_code}")
+        except Exception as e:
+            self.log_message(f"⚠️ Server health check failed: {e}")
+    
+    def _update_server_status(self, status):
+        """Update server status in GUI (called from main thread)"""
+        # Update menu states based on server status
+        if hasattr(self, 'server_menu'):
+            if status == "Running":
+                self.server_menu.entryconfig(0, state="disabled")  # Start Server
+                self.server_menu.entryconfig(1, state="normal")    # Stop Server
+            else:
+                self.server_menu.entryconfig(0, state="normal")    # Start Server
+                self.server_menu.entryconfig(1, state="disabled")  # Stop Server
+    
+    def stop_server(self):
+        """Stop the Flask server"""
+        if not self.server_running:
+            return
+        
+        try:
+            # For thread-based server, we can't easily stop it
+            # The thread will terminate when the main process ends
+            self.server_running = False
+            
+            # Update GUI if it's ready
+            if hasattr(self, 'root') and self.root:
+                self.root.after_idle(lambda: self._update_server_status("Stopped"))
+            
+            self.log_message("Server stopped")
+            
+        except Exception as e:
+            self.log_message(f"Failed to stop server: {e}")
+            if hasattr(self, 'root') and self.root:
+                self.root.after_idle(lambda: messagebox.showerror("Error", f"Failed to stop server: {e}"))
+    
+    def open_api(self):
+        """Open the API in default browser"""
+        try:
+            webbrowser.open("http://localhost:5000/health")
+        except Exception as e:
+            self.log_message(f"Failed to open API: {e}")
+    
+    def log_message(self, message):
+        """Add a message to the log queue"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        formatted_message = f"[{timestamp}] {message}"
+        self.log_queue.put(formatted_message)
+    
+    def monitor_logs(self):
+        """Monitor log queue and update GUI"""
+        try:
+            # Process all available messages at once
+            messages = []
+            while True:
+                try:
+                    message = self.log_queue.get_nowait()
+                    messages.append(message)
+                except queue.Empty:
+                    break
+            
+            # Update GUI with all messages at once
+            if messages:
+                combined_message = '\n'.join(messages) + '\n'
+                self.log_text.insert(tk.END, combined_message)
+                
+                if self.auto_scroll_var.get():
+                    self.log_text.see(tk.END)
+                
+                # Limit log size (only check occasionally)
+                lines = self.log_text.get("1.0", tk.END).split("\n")
+                if len(lines) > 1000:
+                    self.log_text.delete("1.0", "500.0")
+                        
+        except Exception as e:
+            print(f"Error monitoring logs: {e}")
+        
+        # Schedule next check (further reduced frequency)
+        self.root.after(1000, self.monitor_logs)
+    
+    def clear_logs(self):
+        """Clear the log display"""
+        self.log_text.delete("1.0", tk.END)
+    
+    def save_logs(self):
+        """Save logs to file"""
+        try:
+            from tkinter import filedialog
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+            )
+            
+            if filename:
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(self.log_text.get("1.0", tk.END))
+                
+                self.log_message(f"Logs saved to {filename}")
+                
+        except Exception as e:
+            self.log_message(f"Failed to save logs: {e}")
+            messagebox.showerror("Error", f"Failed to save logs: {e}")
+    
+    def _update_db_stats_display(self, text):
+        """Update database stats display (called from main thread)"""
+        if hasattr(self, 'db_stats_var'):
+            self.db_stats_var.set(text)
+    
+    def check_startup_enabled(self):
+        """Check if the app is enabled to start with Windows"""
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                               r"Software\Microsoft\Windows\CurrentVersion\Run", 
+                               0, winreg.KEY_READ)
+            winreg.QueryValueEx(key, "RustGameController")
+            winreg.CloseKey(key)
+            return True
+        except:
+            return False
+    
+    def update_startup_command(self):
+        """Update the startup command in registry"""
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                               r"Software\Microsoft\Windows\CurrentVersion\Run", 
+                               0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
+            
+            app_path = sys.argv[0]
+            if app_path.endswith('.py'):
+                # If running as script, use python executable
+                app_path = f'"{sys.executable}" "{app_path}"'
+            else:
+                # If running as exe
+                app_path = f'"{app_path}"'
+            
+            # Add start minimized parameter if enabled
+            if self.check_start_minimized_enabled():
+                app_path += ' --minimized'
+            
+            winreg.SetValueEx(key, "RustGameController", 0, winreg.REG_SZ, app_path)
+            winreg.CloseKey(key)
+            
+        except Exception as e:
+            self.log_message(f"Failed to update startup command: {e}")
+    
+    def check_start_minimized_enabled(self):
+        """Check if the app is set to start minimized"""
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                               r"Software\RustGameController", 
+                               0, winreg.KEY_READ)
+            value, _ = winreg.QueryValueEx(key, "StartMinimized")
+            winreg.CloseKey(key)
+            return bool(value)
+        except FileNotFoundError:
+            # Key doesn't exist, return False
+            return False
+        except:
+            return False
+
     def create_api_testing_panel(self, parent):
         """Create the API testing panel on the right side"""
         # Main API testing frame
-        api_frame = ttk.LabelFrame(parent, text="API Testing", padding="5")
-        api_frame.grid(row=2, column=1, rowspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
-        api_frame.columnconfigure(0, weight=1)
+        self.api_frame = ttk.LabelFrame(parent, text="API Testing", padding="5")
+        # Create the frame but don't show it initially (hidden by default)
+        self.api_frame.columnconfigure(0, weight=1)
         
         # Create a canvas with scrollbar for the testing panel
-        canvas = tk.Canvas(api_frame, width=400)
-        scrollbar = ttk.Scrollbar(api_frame, orient="vertical", command=canvas.yview)
+        canvas = tk.Canvas(self.api_frame, width=400)
+        scrollbar = ttk.Scrollbar(self.api_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
         
         scrollable_frame.bind(
@@ -957,705 +1596,6 @@ class RustControllerGUI:
         ttk.Button(type_frame, text="Copy PowerShell", 
                   command=lambda: self.copy_curl_to_clipboard("type_string", {"text": self.type_string_var.get()})).pack(side=tk.LEFT)
     
-    def test_api_call(self, action, params):
-        """Make an API call to test the game control endpoints"""
-        if not self.server_running:
-            messagebox.showwarning("Warning", "Server is not running. Please start the server first.")
-            return
-        
-        # Check if server is actually responding
-        if not self.check_server_status():
-            messagebox.showwarning("Warning", "Server is not responding. Please check the server status.")
-            return
-        
-        # Get the command delay from the GUI
-        try:
-            delay_ms = int(self.command_delay_var.get())
-            if delay_ms > 0:
-                # Log that command is being delayed
-                self.log_message(f"Command delayed: {action.replace('_', ' ').title()} will execute in {delay_ms}ms")
-                # Schedule the API call with delay
-                self.root.after(delay_ms, lambda: self._execute_api_call(action, params))
-                return
-            elif delay_ms < 0:
-                # Log warning for negative delay
-                self.log_message(f"Warning: Negative delay ({delay_ms}ms) ignored, executing immediately")
-        except ValueError:
-            # If delay is not a valid number, use 0
-            pass
-        
-        # Execute immediately if no delay or negative delay
-        # Show info for long-running operations
-        if action in ["stack_inventory", "cancel_all_crafting", "toggle_stack_inventory"]:
-            self.log_message(f"⏳ Starting {action.replace('_', ' ').title()} - this may take up to 2 minutes...")
-        
-        # Run API call in background thread to prevent GUI freezing
-        threading.Thread(target=self._execute_api_call, args=(action, params), daemon=True).start()
-    
-    def _execute_api_call(self, action, params):
-        """Execute the actual API call"""
-        try:
-            import json
-            
-            # Map action names to API endpoints
-            endpoint_map = {
-                "craft": "/craft/name",  # Changed from /craft to /craft/name
-                "cancel_craft": "/craft/cancel/name",  # Changed from /craft/cancel to /craft/cancel/name
-                "cancel_all_crafting": "/craft/cancel-all",
-                "suicide": "/player/suicide",
-                "kill": "/player/kill",
-                "respawn": "/player/respawn",
-                "respawn_only": "/player/respawn-only",
-                "respawn_random": "/player/respawn-random",
-                "respawn_bed": "/player/respawn-bed",
-                "gesture": "/player/gesture",
-                "auto_run": "/player/auto-run",
-                "auto_run_jump": "/player/auto-run-jump",
-                "auto_crouch_attack": "/player/auto-crouch-attack",
-                "global_chat": "/chat/global",
-                "team_chat": "/chat/team",
-                "quit_game": "/game/quit",
-                "disconnect": "/game/disconnect",
-                "connect": "/game/connect",
-                "stack_inventory": "/inventory/stack",
-                "set_look_radius": "/settings/look-radius",
-                "set_voice_volume": "/settings/voice-volume",
-                "set_master_volume": "/settings/master-volume",
-                "set_hud_state": "/settings/hud",  # Changed from /settings/hud-state to /settings/hud
-                "copy_json": "/clipboard/copy-json",
-                "type_string": "/input/type-enter",  # Changed from /input/type to /input/type-enter
-                "start_anti_afk": "/anti-afk/start",
-                "stop_anti_afk": "/anti-afk/stop",
-                "toggle_stack_inventory": "/inventory/toggle-stack",
-                "noclip_toggle": "/player/noclip",
-                "god_mode_toggle": "/player/god-mode",
-                "set_time": "/player/set-time",
-                "teleport_to_marker": "/player/teleport-marker",
-                "toggle_combat_log": "/player/combat-log",
-                "clear_console": "/player/clear-console",
-                "toggle_console": "/player/toggle-console"
-            }
-            
-            endpoint = endpoint_map.get(action)
-            if not endpoint:
-                messagebox.showerror("Error", f"Unknown action: {action}")
-                return
-            
-            url = f"http://localhost:5000{endpoint}"
-            
-            # Determine timeout based on action type
-            # Long-running operations need more time
-            if action in ["stack_inventory", "cancel_all_crafting", "toggle_stack_inventory"]:
-                timeout = 120  # 2 minutes for long operations
-            else:
-                timeout = 5    # 5 seconds for regular operations
-            
-            # Prepare the request
-            if params:
-                # Filter out empty values
-                filtered_params = {k: v for k, v in params.items() if v is not None and v != ""}
-                if filtered_params:
-                    response = requests.post(url, json=filtered_params, timeout=timeout)
-                else:
-                    response = requests.post(url, timeout=timeout)
-            else:
-                response = requests.post(url, timeout=timeout)
-            
-            if response.status_code == 200:
-                result = response.json()
-                # Debug logging to see what the API returns
-                self.log_message(f"DEBUG: API Response for {action}: {result}")
-                if result.get('success'):
-                    # Log success to server logs instead of showing popup
-                    self.log_message(f"API Success: {action.replace('_', ' ').title()} - {result.get('message', 'Action completed successfully')}")
-                else:
-                    # Use after_idle for GUI updates from background thread
-                    self.root.after_idle(lambda: messagebox.showerror("API Error", f"{action.replace('_', ' ').title()}: {result.get('message', 'Unknown error')}"))
-            else:
-                # Use after_idle for GUI updates from background thread
-                self.root.after_idle(lambda: messagebox.showerror("HTTP Error", f"Server returned status code {response.status_code}"))
-                
-        except requests.exceptions.ConnectionError:
-            # Use after_idle for GUI updates from background thread
-            self.root.after_idle(lambda: messagebox.showerror("Connection Error", "Could not connect to the server. Make sure it's running."))
-        except requests.exceptions.Timeout:
-            # Use after_idle for GUI updates from background thread
-            self.root.after_idle(lambda: messagebox.showerror("Timeout Error", "Request timed out. The server may be busy."))
-        except Exception as e:
-            # Use after_idle for GUI updates from background thread
-            self.root.after_idle(lambda: messagebox.showerror("Error", f"An error occurred: {str(e)}"))
-    
-    def generate_curl_command(self, action, params):
-        """Generate a Windows PowerShell compatible command for the given API call"""
-        # Map action names to API endpoints
-        endpoint_map = {
-            "craft": "/craft/name",
-            "cancel_craft": "/craft/cancel/name",
-            "cancel_all_crafting": "/craft/cancel-all",
-            "suicide": "/player/suicide",
-            "kill": "/player/kill",
-            "respawn": "/player/respawn",
-            "respawn_only": "/player/respawn-only",
-            "respawn_random": "/player/respawn-random",
-            "respawn_bed": "/player/respawn-bed",
-            "gesture": "/player/gesture",
-            "auto_run": "/player/auto-run",
-            "auto_run_jump": "/player/auto-run-jump",
-            "auto_crouch_attack": "/player/auto-crouch-attack",
-            "global_chat": "/chat/global",
-            "team_chat": "/chat/team",
-            "quit_game": "/game/quit",
-            "disconnect": "/game/disconnect",
-            "connect": "/game/connect",
-            "stack_inventory": "/inventory/stack",
-            "set_look_radius": "/settings/look-radius",
-            "set_voice_volume": "/settings/voice-volume",
-            "set_master_volume": "/settings/master-volume",
-            "set_hud_state": "/settings/hud",
-            "copy_json": "/clipboard/copy-json",
-            "type_string": "/input/type-enter",
-            "toggle_stack_inventory": "/inventory/toggle-stack",
-            "noclip_toggle": "/player/noclip",
-            "god_mode_toggle": "/player/god-mode",
-            "set_time": "/player/set-time",
-            "teleport_to_marker": "/player/teleport-marker",
-            "toggle_combat_log": "/player/combat-log",
-            "clear_console": "/player/clear-console",
-            "toggle_console": "/player/toggle-console"
-        }
-        
-        endpoint = endpoint_map.get(action)
-        if not endpoint:
-            return None
-        
-        url = f"http://localhost:5000{endpoint}"
-        
-        # Build the PowerShell command
-        ps_cmd = f'Invoke-WebRequest -Uri "{url}" -Method POST'
-        
-        # Add headers
-        ps_cmd += ' -Headers @{"Content-Type"="application/json"}'
-        
-        # Add JSON data if there are parameters
-        if params:
-            # Filter out empty values
-            filtered_params = {k: v for k, v in params.items() if v is not None and v != ""}
-            if filtered_params:
-                import json
-                json_data = json.dumps(filtered_params)
-                # For PowerShell, we need to escape single quotes and use single quotes around the JSON
-                json_data = json_data.replace("'", "''")
-                ps_cmd += f" -Body '{json_data}'"
-        
-        return ps_cmd
-    
-    def copy_curl_to_clipboard(self, action, params):
-        """Generate PowerShell command and copy to clipboard"""
-        ps_cmd = self.generate_curl_command(action, params)
-        if ps_cmd:
-            try:
-                pyperclip.copy(ps_cmd)
-                self.log_message(f"✅ PowerShell command copied to clipboard: {action.replace('_', ' ').title()}")
-            except Exception as e:
-                messagebox.showerror("Clipboard Error", f"Failed to copy to clipboard: {str(e)}")
-        else:
-            messagebox.showerror("Error", f"Could not generate PowerShell command for action: {action}")
-
-    
-
-    
-
-    
-    def refresh_item_dropdowns(self):
-        """Refresh the item dropdowns with data from the database"""
-        try:
-            # Get craftable items from the Steam database (only items with ingredients)
-            response = requests.get("http://localhost:5000/steam/craftable-items", timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success') and data.get('items'):
-                    # Extract item names and sort them
-                    item_names = []
-                    items_dict = data['items']
-                    
-                    # Handle dictionary format from steam_manager.get_all_items()
-                    for item_id, item_data in items_dict.items():
-                        if isinstance(item_data, dict):
-                            name = item_data.get('name', '')
-                            if name and name not in item_names:
-                                item_names.append(name)
-                    
-                    item_names.sort()  # Sort alphabetically
-                    
-                    # Update both dropdowns
-                    self.craft_name_combo['values'] = item_names
-                    self.cancel_name_combo['values'] = item_names
-                    
-                    # Set default values if empty
-                    if not self.craft_name_var.get() and item_names:
-                        self.craft_name_var.set(item_names[0])
-                    if not self.cancel_name_var.get() and item_names:
-                        self.cancel_name_var.set(item_names[0])
-                    
-                    # Log success to server logs instead of showing popup
-                    self.log_message(f"Dropdown Refresh: Loaded {len(item_names)} craftable items into dropdowns")
-                else:
-                    messagebox.showwarning("Warning", "No craftable items found in database")
-            else:
-                messagebox.showerror("Error", f"Failed to load craftable items: HTTP {response.status_code}")
-                
-        except requests.exceptions.ConnectionError:
-            messagebox.showerror("Connection Error", "Could not connect to the server. Make sure it's running.")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to refresh dropdowns: {str(e)}")
-            # Log the full error for debugging
-            import traceback
-            print(f"Full error: {traceback.format_exc()}")
-    
-    def start_anti_afk(self):
-        """Start the anti-AFK feature"""
-        try:
-            response = requests.post("http://localhost:5000/anti-afk/start", timeout=5)
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('success'):
-                    self.anti_afk_status_var.set("Status: Running")
-                    self.log_message("✅ Anti-AFK started successfully")
-                else:
-                    self.log_message(f"❌ Failed to start Anti-AFK: {result.get('message', 'Unknown error')}")
-            else:
-                self.log_message(f"❌ HTTP Error {response.status_code} when starting Anti-AFK")
-        except Exception as e:
-            self.log_message(f"❌ Error starting Anti-AFK: {str(e)}")
-    
-    def stop_anti_afk(self):
-        """Stop the anti-AFK feature"""
-        try:
-            response = requests.post("http://localhost:5000/anti-afk/stop", timeout=5)
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('success'):
-                    self.anti_afk_status_var.set("Status: Stopped")
-                    self.log_message("✅ Anti-AFK stopped successfully")
-                else:
-                    self.log_message(f"❌ Failed to stop Anti-AFK: {result.get('message', 'Unknown error')}")
-            else:
-                self.log_message(f"❌ HTTP Error {response.status_code} when stopping Anti-AFK")
-        except Exception as e:
-            self.log_message(f"❌ Error stopping Anti-AFK: {str(e)}")
-    
-    def check_anti_afk_status(self):
-        """Check the current anti-AFK status"""
-        try:
-            response = requests.get("http://localhost:5000/anti-afk/status", timeout=5)
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('success'):
-                    is_running = result.get('running', False)
-                    if is_running:
-                        self.anti_afk_status_var.set("Status: Running")
-                        self.log_message("✅ Anti-AFK is currently running")
-                    else:
-                        self.anti_afk_status_var.set("Status: Stopped")
-                        self.log_message("ℹ️ Anti-AFK is not running")
-                else:
-                    self.log_message(f"❌ Failed to get Anti-AFK status: {result.get('message', 'Unknown error')}")
-            else:
-                self.log_message(f"❌ HTTP Error {response.status_code} when checking Anti-AFK status")
-        except Exception as e:
-            self.log_message(f"❌ Error checking Anti-AFK status: {str(e)}")
-    
-    def setup_system_tray(self):
-        """Setup system tray icon and menu"""
-        # Create system tray icon - standard approach
-        try:
-            # Check if we're running as an executable
-            if getattr(sys, 'frozen', False):
-                # Running as executable - try to load bundled icon files
-                # For single-file executables, files are in sys._MEIPASS
-                base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
-                
-                # Try to load icon from bundled files
-                icon_found = False
-                for icon_name in ["camera.ico", "camera.png", "rust_controller.ico", "rust_controller.png"]:
-                    icon_path = os.path.join(base_path, icon_name)
-                    if os.path.exists(icon_path):
-                        try:
-                            self.icon_image = Image.open(icon_path)
-                            # Convert to RGB for system tray compatibility
-                            if self.icon_image.mode != 'RGB':
-                                self.icon_image = self.icon_image.convert('RGB')
-                            # Resize to appropriate size for system tray
-                            self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
-                            self.log_message(f"✅ Using bundled {icon_name} for system tray icon")
-                            icon_found = True
-                            break
-                        except Exception as e:
-                            self.log_message(f"⚠️ Error loading bundled {icon_name}: {e}")
-                            continue
-                
-                if not icon_found:
-                    # For single-file executables, we can't access bundled files directly
-                    # Create a simple camera-like icon programmatically
-                    try:
-                        # Create a simple camera icon (black camera shape on white background)
-                        self.icon_image = Image.new('RGB', (64, 64), color='white')
-                        from PIL import ImageDraw
-                        draw = ImageDraw.Draw(self.icon_image)
-                        
-                        # Draw a simple camera shape
-                        # Camera body (rectangle)
-                        draw.rectangle([12, 20, 52, 44], fill='black', outline='black')
-                        # Camera lens (circle)
-                        draw.ellipse([24, 26, 40, 38], fill='white', outline='black')
-                        # Camera flash (small rectangle)
-                        draw.rectangle([20, 16, 28, 20], fill='black', outline='black')
-                        
-                        self.log_message("✅ Created programmatic camera icon for system tray")
-                        icon_found = True
-                    except Exception as e:
-                        self.log_message(f"⚠️ Error creating programmatic icon: {e}")
-                        # Create a simple colored square as fallback
-                        self.icon_image = Image.new('RGB', (64, 64), color='blue')
-                        self.log_message("⚠️ Using fallback blue square")
-            else:
-                # Running as script - try to load icon files from current directory
-                if os.path.exists("camera.ico"):
-                    self.icon_image = Image.open("camera.ico")
-                    # Convert to RGB for system tray compatibility
-                    if self.icon_image.mode != 'RGB':
-                        self.icon_image = self.icon_image.convert('RGB')
-                    # Resize to appropriate size for system tray
-                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
-                    self.log_message("✅ Using camera.ico for system tray icon")
-                elif os.path.exists("rust_controller.ico"):
-                    self.icon_image = Image.open("rust_controller.ico")
-                    # Convert to RGB for system tray compatibility
-                    if self.icon_image.mode != 'RGB':
-                        self.icon_image = self.icon_image.convert('RGB')
-                    # Resize to appropriate size for system tray
-                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
-                    self.log_message("✅ Using rust_controller.ico for system tray icon")
-                else:
-                    # Create a simple colored square as fallback
-                    self.icon_image = Image.new('RGB', (64, 64), color='blue')
-                    self.log_message("⚠️ No .ico file found, using fallback blue square")
-        except Exception as e:
-            # Create a simple colored square as fallback
-            self.icon_image = Image.new('RGB', (64, 64), color='blue')
-            self.log_message(f"⚠️ Error loading icon: {e}, using fallback blue square")
-        
-        # Create system tray menu
-        menu = pystray.Menu(
-            item('Show Window', self.show_window),
-            item('Start Server', self.start_server),
-            item('Stop Server', self.stop_server),
-            pystray.Menu.SEPARATOR,
-            item('Open API', self.open_api),
-            pystray.Menu.SEPARATOR,
-            item('Exit', self.quit_app)
-        )
-        
-        # Create system tray icon
-        self.tray_icon = pystray.Icon("camera_controller", self.icon_image, 
-                                     "Rust Game Controller API", menu)
-        
-        # Start system tray in a separate thread
-        self.tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
-        self.tray_thread.start()
-    
-    def start_server(self):
-        """Start the Flask server"""
-        if self.server_running:
-            return
-        
-        try:
-            self.log_message("Starting API server...")
-            
-            # Import and start Flask app directly instead of using subprocess
-            def run_flask_server():
-                try:
-                    from app import app
-                    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
-                except Exception as e:
-                    self.log_message(f"❌ Flask server error: {e}")
-            
-            # Start Flask server in a separate thread
-            self.server_thread = threading.Thread(target=run_flask_server, daemon=True)
-            self.server_thread.start()
-            
-            # Wait a moment for the server to start
-            time.sleep(2)
-            
-            # Check if the server is responding
-            try:
-                response = requests.get("http://localhost:5000/health", timeout=5)
-                if response.status_code == 200:
-                    self.server_running = True
-                    self.log_message("✅ API server started successfully on http://localhost:5000")
-                    # Update GUI status if GUI is ready
-                    if hasattr(self, 'root') and self.root:
-                        self.root.after_idle(lambda: self._update_server_status("Running"))
-                else:
-                    self.log_message("❌ Server started but not responding properly")
-            except:
-                self.log_message("❌ Server failed to start or respond")
-            
-        except Exception as e:
-            self.log_message(f"❌ Failed to start server: {e}")
-            if hasattr(self, 'root') and self.root:
-                self.root.after_idle(lambda: messagebox.showerror("Error", f"Failed to start server: {e}"))
-    
-    def wait_for_server_ready(self):
-        """Wait for the server to be fully ready and responding"""
-        self.log_message("Waiting for server to be ready...")
-        max_attempts = 30  # Wait up to 30 seconds
-        attempt = 0
-        
-        while attempt < max_attempts:
-            try:
-                response = requests.get("http://localhost:5000/health", timeout=2)
-                if response.status_code == 200:
-                    self.server_running = True
-                    self.log_message("✅ Server is ready and responding")
-                    return True
-            except:
-                pass
-            
-            attempt += 1
-            time.sleep(1)
-            if attempt % 5 == 0:  # Log every 5 seconds
-                self.log_message(f"Still waiting for server... ({attempt}s)")
-        
-        self.log_message("❌ Server failed to become ready within timeout")
-        return False
-    
-    def _test_server_health(self):
-        """Test if the server is responding"""
-        try:
-            response = requests.get("http://localhost:5000/health", timeout=5)
-            if response.status_code == 200:
-                self.log_message("✅ Server health check passed")
-            else:
-                self.log_message(f"⚠️ Server health check failed: {response.status_code}")
-        except Exception as e:
-            self.log_message(f"⚠️ Server health check failed: {e}")
-    
-    def _update_server_status(self, status):
-        """Update server status in GUI (called from main thread)"""
-        if hasattr(self, 'status_var'):
-            self.status_var.set(status)
-        if hasattr(self, 'start_button'):
-            self.start_button.config(state="disabled" if status == "Running" else "normal")
-        if hasattr(self, 'stop_button'):
-            self.stop_button.config(state="normal" if status == "Running" else "disabled")
-    
-    def stop_server(self):
-        """Stop the Flask server"""
-        if not self.server_running:
-            return
-        
-        try:
-            # For thread-based server, we can't easily stop it
-            # The thread will terminate when the main process ends
-            self.server_running = False
-            
-            # Update GUI if it's ready
-            if hasattr(self, 'root') and self.root:
-                self.root.after_idle(lambda: self._update_server_status("Stopped"))
-            
-            self.log_message("Server stopped")
-            
-        except Exception as e:
-            self.log_message(f"Failed to stop server: {e}")
-            if hasattr(self, 'root') and self.root:
-                self.root.after_idle(lambda: messagebox.showerror("Error", f"Failed to stop server: {e}"))
-    
-    def open_api(self):
-        """Open the API in default browser"""
-        try:
-            webbrowser.open("http://localhost:5000/health")
-        except Exception as e:
-            self.log_message(f"Failed to open API: {e}")
-    
-    def log_message(self, message):
-        """Add a message to the log queue"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        formatted_message = f"[{timestamp}] {message}"
-        self.log_queue.put(formatted_message)
-    
-    def monitor_logs(self):
-        """Monitor log queue and update GUI"""
-        try:
-            # Process all available messages at once
-            messages = []
-            while True:
-                try:
-                    message = self.log_queue.get_nowait()
-                    messages.append(message)
-                except queue.Empty:
-                    break
-            
-            # Update GUI with all messages at once
-            if messages:
-                combined_message = '\n'.join(messages) + '\n'
-                self.log_text.insert(tk.END, combined_message)
-                
-                if self.auto_scroll_var.get():
-                    self.log_text.see(tk.END)
-                
-                # Limit log size (only check occasionally)
-                lines = self.log_text.get("1.0", tk.END).split("\n")
-                if len(lines) > 1000:
-                    self.log_text.delete("1.0", "500.0")
-                        
-        except Exception as e:
-            print(f"Error monitoring logs: {e}")
-        
-        # Schedule next check (further reduced frequency)
-        self.root.after(1000, self.monitor_logs)
-    
-    def clear_logs(self):
-        """Clear the log display"""
-        self.log_text.delete("1.0", tk.END)
-    
-    def save_logs(self):
-        """Save logs to file"""
-        try:
-            from tkinter import filedialog
-            filename = filedialog.asksaveasfilename(
-                defaultextension=".txt",
-                filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
-            )
-            
-            if filename:
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(self.log_text.get("1.0", tk.END))
-                
-                self.log_message(f"Logs saved to {filename}")
-                
-        except Exception as e:
-            self.log_message(f"Failed to save logs: {e}")
-            messagebox.showerror("Error", f"Failed to save logs: {e}")
-    
-    def _update_db_stats_display(self, text):
-        """Update database stats display (called from main thread)"""
-        if hasattr(self, 'db_stats_var'):
-            self.db_stats_var.set(text)
-    
-    def check_startup_enabled(self):
-        """Check if the app is enabled to start with Windows"""
-        try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                               r"Software\Microsoft\Windows\CurrentVersion\Run", 
-                               0, winreg.KEY_READ)
-            winreg.QueryValueEx(key, "RustGameController")
-            winreg.CloseKey(key)
-            return True
-        except:
-            return False
-    
-    def toggle_startup(self):
-        """Toggle startup with Windows"""
-        try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                               r"Software\Microsoft\Windows\CurrentVersion\Run", 
-                               0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
-            
-            if self.startup_var.get():
-                # Enable startup
-                self.update_startup_command()
-                self.log_message("Startup enabled")
-            else:
-                # Disable startup
-                try:
-                    winreg.DeleteValue(key, "RustGameController")
-                except:
-                    pass
-                self.log_message("Startup disabled")
-            
-            winreg.CloseKey(key)
-            
-        except Exception as e:
-            self.log_message(f"Failed to toggle startup: {e}")
-            messagebox.showerror("Error", f"Failed to toggle startup: {e}")
-            # Revert checkbox state
-            self.startup_var.set(not self.startup_var.get())
-    
-    def update_startup_command(self):
-        """Update the startup command in registry"""
-        try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                               r"Software\Microsoft\Windows\CurrentVersion\Run", 
-                               0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
-            
-            app_path = sys.argv[0]
-            if app_path.endswith('.py'):
-                # If running as script, use python executable
-                app_path = f'"{sys.executable}" "{app_path}"'
-            else:
-                # If running as exe
-                app_path = f'"{app_path}"'
-            
-            # Add start minimized parameter if enabled
-            if self.start_minimized_var.get():
-                app_path += ' --minimized'
-            
-            winreg.SetValueEx(key, "RustGameController", 0, winreg.REG_SZ, app_path)
-            winreg.CloseKey(key)
-            
-        except Exception as e:
-            self.log_message(f"Failed to update startup command: {e}")
-    
-    def check_start_minimized_enabled(self):
-        """Check if the app is set to start minimized"""
-        try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                               r"Software\RustGameController", 
-                               0, winreg.KEY_READ)
-            value, _ = winreg.QueryValueEx(key, "StartMinimized")
-            winreg.CloseKey(key)
-            return bool(value)
-        except FileNotFoundError:
-            # Key doesn't exist, return False
-            return False
-        except:
-            return False
-    
-    def toggle_start_minimized(self):
-        """Toggle start minimized setting"""
-        try:
-            # Create the key if it doesn't exist
-            try:
-                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
-                                   r"Software\RustGameController", 
-                                   0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
-            except FileNotFoundError:
-                # Create the key
-                key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, 
-                                     r"Software\RustGameController")
-            
-            if self.start_minimized_var.get():
-                # Enable start minimized
-                winreg.SetValueEx(key, "StartMinimized", 0, winreg.REG_DWORD, 1)
-                self.log_message("Start minimized enabled")
-            else:
-                # Disable start minimized
-                winreg.SetValueEx(key, "StartMinimized", 0, winreg.REG_DWORD, 0)
-                self.log_message("Start minimized disabled")
-            
-            winreg.CloseKey(key)
-            
-            # Update startup command if startup is enabled
-            if self.startup_var.get():
-                self.update_startup_command()
-            
-        except Exception as e:
-            self.log_message(f"Failed to toggle start minimized: {e}")
-            messagebox.showerror("Error", f"Failed to toggle start minimized: {e}")
-            # Revert checkbox state
-            self.start_minimized_var.set(not self.start_minimized_var.get())
-    
     def on_minimize(self, event=None):
         """Handle minimize button click"""
         # Check if the window is being minimized (not just moved or resized)
@@ -1890,6 +1830,120 @@ class RustControllerGUI:
         # Check Steam login status on startup
         self.check_steam_login_status()
         self.root.mainloop()
+
+    def toggle_api_panel(self):
+        """Toggle the API testing panel visibility"""
+        if hasattr(self, 'api_frame'):
+            if self.api_panel_visible:
+                # Currently visible, so hide it
+                self.api_frame.grid_remove()
+                self.api_menu.entryconfig(0, label="Show API Testing Panel")
+                self.api_panel_visible = False
+            else:
+                # Currently hidden, so show it
+                self.api_frame.grid(row=1, column=1, rowspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(5, 0))
+                self.api_menu.entryconfig(0, label="Hide API Testing Panel")
+                self.api_panel_visible = True
+
+    def toggle_startup(self):
+        """Toggle startup with Windows option"""
+        try:
+            current_state = self.check_startup_enabled()
+            if current_state:
+                # Disable startup
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                                   r"Software\Microsoft\Windows\CurrentVersion\Run", 
+                                   0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
+                try:
+                    winreg.DeleteValue(key, "RustGameController")
+                except:
+                    pass
+                winreg.CloseKey(key)
+                self.log_message("Startup disabled")
+            else:
+                # Enable startup
+                self.update_startup_command()
+                self.log_message("Startup enabled")
+            
+            # Update menu label
+            self.update_menu_labels()
+            
+        except Exception as e:
+            self.log_message(f"⚠️ Failed to toggle startup: {e}")
+
+    def toggle_start_minimized(self):
+        """Toggle start minimized option"""
+        try:
+            current_state = self.check_start_minimized_enabled()
+            
+            # Create the key if it doesn't exist
+            try:
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                                   r"Software\RustGameController", 
+                                   0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
+            except FileNotFoundError:
+                # Create the key
+                key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, 
+                                     r"Software\RustGameController")
+            
+            if current_state:
+                # Disable start minimized
+                winreg.SetValueEx(key, "StartMinimized", 0, winreg.REG_DWORD, 0)
+                self.log_message("Start minimized disabled")
+            else:
+                # Enable start minimized
+                winreg.SetValueEx(key, "StartMinimized", 0, winreg.REG_DWORD, 1)
+                self.log_message("Start minimized enabled")
+            
+            winreg.CloseKey(key)
+            
+            # Update startup command if startup is enabled
+            if self.check_startup_enabled():
+                self.update_startup_command()
+            
+            # Update menu label
+            self.update_menu_labels()
+            
+        except Exception as e:
+            self.log_message(f"⚠️ Failed to toggle start minimized: {e}")
+
+    def update_menu_labels(self):
+        """Update menu labels to reflect current state"""
+        if hasattr(self, 'launch_menu'):
+            # Update startup label
+            startup_enabled = self.check_startup_enabled()
+            startup_label = "Start on Boot: Enabled" if startup_enabled else "Start on Boot: Disabled"
+            self.launch_menu.entryconfig(0, label=startup_label)
+            
+            # Update start minimized label
+            start_minimized_enabled = self.check_start_minimized_enabled()
+            start_minimized_label = "Start Minimized: Enabled" if start_minimized_enabled else "Start Minimized: Disabled"
+            self.launch_menu.entryconfig(1, label=start_minimized_label)
+
+    def update_startup_command(self):
+        """Update the startup command in registry"""
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
+                               r"Software\Microsoft\Windows\CurrentVersion\Run", 
+                               0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
+            
+            app_path = sys.argv[0]
+            if app_path.endswith('.py'):
+                # If running as script, use python executable
+                app_path = f'"{sys.executable}" "{app_path}"'
+            else:
+                # If running as exe
+                app_path = f'"{app_path}"'
+            
+            # Add start minimized parameter if enabled
+            if self.check_start_minimized_enabled():
+                app_path += ' --minimized'
+            
+            winreg.SetValueEx(key, "RustGameController", 0, winreg.REG_SZ, app_path)
+            winreg.CloseKey(key)
+            
+        except Exception as e:
+            self.log_message(f"Failed to update startup command: {e}")
 
 def main():
     """Main entry point"""
