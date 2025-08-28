@@ -38,6 +38,44 @@ The API will be available at `http://localhost:5000`
 
 **Note**: The GUI application includes the API server and provides a user-friendly interface for testing all endpoints.
 
+## CI/CD Build Process
+
+This project uses GitHub Actions for automated building and releases:
+
+### Automatic Builds
+- **Trigger**: Every commit to main branch and pull requests
+- **Action**: Builds the executable using PyInstaller
+- **Output**: Build artifacts are uploaded to GitHub Actions
+- **Access**: Download from the Actions tab in your repository
+
+### Automatic Releases
+- **Trigger**: Push a version tag (e.g., `v1.0.0`)
+- **Action**: Creates a GitHub release with the executable attached
+- **Usage**: 
+  ```bash
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
+
+### Manual Build (Local Development)
+If you need to build locally for development:
+
+1. Install PyInstaller:
+```bash
+pip install pyinstaller
+```
+
+2. Build the executable:
+```bash
+pyinstaller RustGameController.spec
+```
+
+3. Run the executable:
+```bash
+cd dist
+RustGameController.exe
+```
+
 ## API Endpoints
 
 ### Health Check
@@ -544,41 +582,7 @@ All endpoints return JSON responses with the following structure:
 }
 ```
 
-## Building the Executable
-
-To create a standalone executable of the application:
-
-### Prerequisites
-
-1. Install PyInstaller:
-```bash
-pip install pyinstaller
-```
-
-2. Ensure you have the required files:
-   - `camera.png` (application icon)
-
-### Build Process
-
-1. **Build the executable:**
-```bash
-pyinstaller --onefile --windowed --icon=camera.png --name=RustGameController gui.py
-```
-
-2. **Run the executable:**
-```bash
-cd dist
-RustGameController.exe
-```
-
-### Build Options Explained
-
-- `--onefile`: Creates a single executable file
-- `--windowed`: Runs without a console window (GUI only)
-- `--icon=camera.png`: Uses camera.png as the application icon
-- `--name=RustGameController`: Names the executable "RustGameController.exe"
-
-### Data Storage
+## Data Storage
 
 The application stores data in `~/Documents/Rust-Actions/` folder:
 - `itemDatabase.json` - Item database
@@ -587,44 +591,7 @@ The application stores data in `~/Documents/Rust-Actions/` folder:
 - `rustclient/` - Rust client files
 - `steamcmd/` - SteamCMD installation
 
-### Troubleshooting
-
-- **Permission Error**: Close any running instances of the application before rebuilding
-- **UnityPy Issues**: The application handles missing UnityPy gracefully (optional dependency)
-
-### GUI Features
-
-The GUI application provides:
-- **System Tray Integration**: Minimizes to system tray when closed
-- **Startup with Windows**: Option to automatically start with Windows
-- **Real-time Logs**: View server logs in real-time
-- **Server Controls**: Start/stop the API server
-- **Log Management**: Clear and save logs
-- **Quick Access**: Open API in browser directly from GUI
-
 ## Development
-
-### Project Structure
-```
-rust-actions/
-├── app.py                    # Main Flask application
-├── gui.py                    # GUI application with system tray
-├── steam_manager.py          # Steam integration and SteamCMD management
-├── unitypy_extractor.py      # Unity asset extraction (optional)
-├── keyboard_manager.py       # Keyboard input simulation
-├── binds_manager.py          # Rust binds management
-├── requirements.txt          # Python dependencies
-├── camera.png               # Application icon
-├── data/                    # Data directory (auto-generated)
-│   └── itemDatabase.json   # Item database (migrated to Documents)
-├── dist/                    # Build output directory (auto-generated)
-│   ├── RustGameController.exe # Executable
-│   └── data/               # Data folder for executable
-├── README.md                # This file
-└── .gitignore               # Git ignore file
-```
-
-**Note**: Application data is now stored in `~/Documents/Rust-Actions/` for better user experience and persistence.
 
 ### Adding New Endpoints
 
@@ -632,21 +599,3 @@ rust-actions/
 2. Create a corresponding Flask route
 3. Add proper error handling and validation
 4. Update this README with the new endpoint documentation
-
-### TODO
-
-- [ ] Implement actual game interaction logic
-- [ ] Add authentication/authorization
-- [ ] Add rate limiting
-- [ ] Add configuration file support
-- [ ] Add logging to file
-- [ ] Add unit tests
-- [ ] Add Docker support
-
-## License
-
-This project is licensed under the MIT License.
-
-## Disclaimer
-
-This API is for educational and development purposes. Make sure to comply with the game's terms of service and applicable laws when using this software.
