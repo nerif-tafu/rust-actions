@@ -75,46 +75,7 @@ class SteamManager:
             dir_path.mkdir(parents=True, exist_ok=True)
             logger.debug(f"Ensured directory exists: {dir_path}")
     
-    def migrate_from_old_location(self):
-        """Migrate data from old data folder to Documents/Rust-Actions"""
-        try:
-            # Check if we're running from the old location (where data folder exists)
-            old_data_dir = Path("data")
-            if old_data_dir.exists():
-                logger.info("Found old data folder, migrating to Documents/Rust-Actions...")
-                
-                # Copy itemDatabase.json if it exists
-                old_database = old_data_dir / "itemDatabase.json"
-                if old_database.exists() and not self.database_path.exists():
-                    import shutil
-                    shutil.copy2(old_database, self.database_path)
-                    logger.info(f"Migrated itemDatabase.json to {self.database_path}")
-                
-                # Copy images folder if it exists
-                old_images = old_data_dir / "images"
-                if old_images.exists() and not self.images_dir.exists():
-                    import shutil
-                    shutil.copytree(old_images, self.images_dir)
-                    logger.info(f"Migrated images folder to {self.images_dir}")
-                
-                # Copy steamcmd folder if it exists
-                old_steamcmd = old_data_dir / "steamcmd"
-                if old_steamcmd.exists() and not self.steamcmd_dir.exists():
-                    import shutil
-                    shutil.copytree(old_steamcmd, self.steamcmd_dir)
-                    logger.info(f"Migrated steamcmd folder to {self.steamcmd_dir}")
-                
-                # Copy rustclient folder if it exists
-                old_rustclient = old_data_dir / "rustclient"
-                if old_rustclient.exists() and not self.rust_client_path.exists():
-                    import shutil
-                    shutil.copytree(old_rustclient, self.rust_client_path)
-                    logger.info(f"Migrated rustclient folder to {self.rust_client_path}")
-                
-                logger.info("Migration completed successfully")
-                
-        except Exception as e:
-            logger.error(f"Error during migration: {e}")
+
     
     def load_saved_credentials(self):
         """Load saved Steam credentials"""
@@ -252,12 +213,14 @@ class SteamManager:
             )
             
             # Read output in real-time
+            stdout_lines = []
             while True:
                 output = process.stdout.readline()
                 if output == '' and process.poll() is not None:
                     break
                 if output:
                     output = output.strip()
+                    stdout_lines.append(output)
                     logger.debug(f"SteamCMD stdout: {output}")
                     if progress_callback:
                         progress_callback(30, f"SteamCMD: {output[:80]}...")
@@ -277,8 +240,25 @@ class SteamManager:
                 return True
             else:
                 logger.error(f"SteamCMD process failed with code {return_code}")
+                # Log the full stdout output for debugging
+                if stdout_lines:
+                    logger.error("SteamCMD stdout output:")
+                    for line in stdout_lines:
+                        logger.error(f"  {line}")
                 if stderr_output:
-                    logger.error(f"Error details: {stderr_output}")
+                    logger.error(f"SteamCMD stderr: {stderr_output}")
+                
+                # Provide specific error messages for common Steam error codes
+                if return_code == 5:
+                    logger.error("Steam error code 5: App not available. This usually means:")
+                    logger.error("  - The Steam account doesn't own Rust (app ID 252490)")
+                    logger.error("  - The account is restricted or banned")
+                    logger.error("  - Steam Guard is blocking the login")
+                elif return_code == 8:
+                    logger.error("Steam error code 8: No subscription. The account doesn't own this app.")
+                elif return_code == 10:
+                    logger.error("Steam error code 10: App not available in this region.")
+                
                 return False
                 
         except Exception as e:
@@ -375,7 +355,7 @@ class SteamManager:
                 "message": f"Error checking login status: {str(e)}"
             }
     
-    def steam_login(self, username: str, password: str) -> Dict[str, Any]:
+    def steam_login(self, username: str, password: str, twofa_code: Optional[str] = None) -> Dict[str, Any]:
         """Attempt Steam login"""
         try:
             logger.info(f"Attempting Steam login for user: {username}")
@@ -399,14 +379,17 @@ class SteamManager:
                     "message": f"SteamCMD executable not found at: {self.steamcmd_exe}"
                 }
             
-            # Use the simpler approach like Node.js version
-            # On Windows, enclose the password in double quotes to handle special chars
-            if self.is_windows:
-                command = f'"{self.steamcmd_exe}" +login {username} "{password}" +quit'
+            # Build the login command
+            if twofa_code:
+                # Include 2FA code in the command
+                command = f'"{self.steamcmd_exe}" +login {username} "{password}" "{twofa_code}" +quit'
+                log_command = f'"{self.steamcmd_exe}" +login {username} "********" "********" +quit'
             else:
+                # Standard login without 2FA
                 command = f'"{self.steamcmd_exe}" +login {username} "{password}" +quit'
+                log_command = f'"{self.steamcmd_exe}" +login {username} "********" +quit'
             
-            logger.info(f"Running command: {command.replace(password, '********')}")
+            logger.info(f"Running command: {log_command}")
             
             # Run the command using subprocess.run
             process = subprocess.run(
@@ -715,21 +698,9 @@ class SteamManager:
             
             # Extract crafting data from Unity bundles
             # Find the items.preload.bundle file
-            steam_apps_path = Path("data/steamcmd/steamapps/common/Rust")
-            possible_bundle_paths = [
-                steam_apps_path / "Bundles" / "shared" / "items.preload.bundle",
-                steam_apps_path / "RustClient_Data" / "Bundles" / "shared" / "items.preload.bundle",
-                Path("data/rustclient/Bundles/shared/items.preload.bundle"),
-                Path("data/rustclient/data/rustclient/Bundles/shared/items.preload.bundle"),
-            ]
+            bundle_path = self.steamcmd_dir / "steamapps" / "common" / "Rust" / "Bundles" / "shared" / "items.preload.bundle"
             
-            bundle_path = None
-            for path in possible_bundle_paths:
-                if path.exists():
-                    bundle_path = path
-                    break
-            
-            if bundle_path:
+            if bundle_path.exists():
                 crafting_result = self.extract_crafting_data_from_bundles(bundle_path, progress_callback)
             else:
                 crafting_result = {"success": False, "error": "Bundle file not found"}
@@ -778,7 +749,8 @@ class SteamManager:
                 self.last_cache_time = now
                 return data
             
-            # Database doesn't exist yet
+            # Database doesn't exist yet - return empty database
+            logger.info("Item database not found, returning empty database")
             return {"metadata": {"itemCount": 0}, "items": {}}
             
         except Exception as e:

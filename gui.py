@@ -350,25 +350,33 @@ class RustControllerGUI:
         self.steam_password_entry = ttk.Entry(steam_frame, textvariable=self.steam_password_var, show="*", width=20)
         self.steam_password_entry.grid(row=1, column=3, sticky=tk.W, padx=(0, 5))
         
+        ttk.Label(steam_frame, text="2FA Code:").grid(row=1, column=4, sticky=tk.W, padx=(0, 5))
+        self.steam_2fa_var = tk.StringVar()
+        self.steam_2fa_entry = ttk.Entry(steam_frame, textvariable=self.steam_2fa_var, show="*", width=20)
+        self.steam_2fa_entry.grid(row=1, column=5, sticky=tk.W, padx=(0, 5))
+        
         # Steam buttons
         self.steam_login_button = ttk.Button(steam_frame, text="Login to Steam", command=self.steam_login)
-        self.steam_login_button.grid(row=1, column=4, padx=(5, 0))
+        self.steam_login_button.grid(row=1, column=6, padx=(5, 0))
         
         self.update_database_button = ttk.Button(steam_frame, text="Update Item Database", command=self.update_item_database)
-        self.update_database_button.grid(row=1, column=5, padx=(5, 0))
+        self.update_database_button.grid(row=1, column=7, padx=(5, 0))
+        
+        self.process_assets_button = ttk.Button(steam_frame, text="Process Assets Only", command=self.process_assets_only)
+        self.process_assets_button.grid(row=1, column=8, padx=(5, 0))
         
         self.regenerate_binds_button = ttk.Button(steam_frame, text="Regenerate Rust-Actions Binds", command=self.regenerate_rust_actions_binds)
-        self.regenerate_binds_button.grid(row=1, column=6, padx=(5, 0))
+        self.regenerate_binds_button.grid(row=1, column=9, padx=(5, 0))
         
         # Progress bar for database updates
         self.progress_var = tk.DoubleVar()
         self.progress_bar = ttk.Progressbar(steam_frame, variable=self.progress_var, maximum=100)
-        self.progress_bar.grid(row=2, column=0, columnspan=6, sticky=(tk.W, tk.E), pady=(5, 0))
+        self.progress_bar.grid(row=2, column=0, columnspan=9, sticky=(tk.W, tk.E), pady=(5, 0))
         
         # Progress label
         self.progress_label_var = tk.StringVar(value="")
         progress_label = ttk.Label(steam_frame, textvariable=self.progress_label_var)
-        progress_label.grid(row=3, column=0, columnspan=6, sticky=(tk.W, tk.E), pady=(2, 0))
+        progress_label.grid(row=3, column=0, columnspan=9, sticky=(tk.W, tk.E), pady=(2, 0))
         
         # API Testing Panel (right column) - hidden by default
         self.api_panel_visible = False
@@ -1674,6 +1682,7 @@ class RustControllerGUI:
         """Handle Steam login"""
         username = self.steam_username_var.get().strip()
         password = self.steam_password_var.get().strip()
+        twofa_code = self.steam_2fa_var.get().strip()
         
         if not username or not password:
             messagebox.showerror("Error", "Please enter both username and password")
@@ -1686,7 +1695,7 @@ class RustControllerGUI:
         # Run login in separate thread
         def login_thread():
             try:
-                result = steam_manager.steam_login(username, password)
+                result = steam_manager.steam_login(username, password, twofa_code if twofa_code else None)
                 
                 # Update UI in main thread
                 self.root.after(0, lambda: self.handle_login_result(result))
@@ -1763,6 +1772,70 @@ class RustControllerGUI:
             else:
                 self.progress_label_var.set(f"Update failed: {result['message']}")
                 messagebox.showerror("Update Failed", result["message"])
+    
+    def process_assets_only(self):
+        """Process Rust assets only (without downloading files)"""
+        # Disable process button during operation
+        self.process_assets_button.config(state="disabled")
+        self.progress_var.set(0)
+        self.progress_label_var.set("Processing Rust assets...")
+        
+        def progress_callback(progress, message):
+            """Callback for progress updates"""
+            self.root.after(0, lambda: self.update_progress(progress, message))
+        
+        def process_thread():
+            try:
+                # Process Rust assets only (skip download)
+                result = steam_manager.process_rust_assets(progress_callback=progress_callback)
+                
+                if result.get("success"):
+                    # Extract crafting data from Unity bundles
+                    progress_callback(70, "Extracting crafting data from Unity bundles...")
+                    
+                    # Find the items.preload.bundle file
+                    bundle_path = steam_manager.steamcmd_dir / "steamapps" / "common" / "Rust" / "Bundles" / "shared" / "items.preload.bundle"
+                    
+                    if bundle_path.exists():
+                        crafting_result = steam_manager.extract_crafting_data_from_bundles(bundle_path, progress_callback)
+                        if crafting_result.get("success"):
+                            result["recipeCount"] = crafting_result.get("recipe_count", 0)
+                            result["message"] = f"Database updated with {result.get('itemCount', 0)} items and {result.get('recipeCount', 0)} crafting recipes"
+                        else:
+                            result["recipeCount"] = 0
+                            result["message"] = f"Database updated with {result.get('itemCount', 0)} items (crafting extraction failed: {crafting_result.get('error', 'Unknown error')})"
+                    else:
+                        result["recipeCount"] = 0
+                        result["message"] = f"Database updated with {result.get('itemCount', 0)} items (bundle file not found)"
+                
+                # Update UI in main thread
+                self.root.after(0, lambda: self.handle_process_assets_result(result))
+                
+            except Exception as e:
+                self.root.after(0, lambda: self.handle_process_assets_result({
+                    "success": False,
+                    "message": f"Process error: {str(e)}"
+                }))
+        
+        threading.Thread(target=process_thread, daemon=True).start()
+    
+    def handle_process_assets_result(self, result):
+        """Handle process assets result"""
+        self.process_assets_button.config(state="normal")
+        
+        if result.get("success", False):
+            item_count = result.get("itemCount", 0)
+            self.progress_label_var.set(f"Assets processed: {item_count} items")
+            messagebox.showinfo("Success", f"Rust assets processed successfully!\n{item_count} items processed and database updated.")
+            # Refresh database stats
+            stats_data = self._fetch_database_stats()
+            self._update_db_stats_display(stats_data)
+            # Automatically refresh the crafting dropdowns with new data
+            self.refresh_item_dropdowns()
+        else:
+            error_msg = result.get("message", "Unknown error")
+            self.progress_label_var.set(f"Process failed: {error_msg}")
+            messagebox.showerror("Process Failed", f"Failed to process Rust assets:\n{error_msg}")
     
     def regenerate_rust_actions_binds(self):
         """Regenerate all rust-actions binds in keys.cfg"""
