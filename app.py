@@ -969,8 +969,12 @@ class RustGameController:
                 }
         
         try:
-            # Use the static bind for cancel all crafting
-            success = self.keyboard_manager.trigger_api_command("cancel_all_crafting")
+            # Use cancel_stack_inventory to cancel the specific stack items
+            success = self.keyboard_manager.cancel_stack_inventory(iterations=iterations)
+            
+            # Also trigger the chat notification
+            chat_success = self.keyboard_manager.trigger_api_command("cancel_all_crafting")
+            
             return {
                 "success": success,
                 "action": "cancel_all_crafting",
