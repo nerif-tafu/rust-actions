@@ -1269,7 +1269,7 @@ class RustGameController:
         try:
             steam_items = steam_manager.get_all_items()
             if steam_items:
-                # Convert Steam database format to match expected format
+                # Convert database format to match expected format
                 items_list = []
                 for item_id, item_data in steam_items.items():
                     items_list.append({
@@ -1277,9 +1277,9 @@ class RustGameController:
                         "name": item_data.get("name", ""),
                         "description": item_data.get("description", ""),
                         "category": item_data.get("category", "Uncategorized"),
-                        "stack_size": 1,  # Steam database doesn't have this
-                        "craft_time": 0.0,  # Steam database doesn't have this
-                        "ingredients": [],  # Steam database doesn't have this
+                        "stack_size": item_data.get("stack_size", 1),
+                        "craft_time": item_data.get("craft_time", 0.0),
+                        "ingredients": item_data.get("ingredients", []),
                         "picture_url": item_data.get("image", "")
                     })
                 
@@ -1311,15 +1311,15 @@ class RustGameController:
         try:
             steam_item = steam_manager.get_item_by_id(item_id)
             if steam_item:
-                # Convert Steam database format to match expected format
+                # Convert database format to match expected format
                 item_dict = {
                     "item_id": steam_item.get("id", item_id),
                     "name": steam_item.get("name", ""),
                     "description": steam_item.get("description", ""),
                     "category": steam_item.get("category", "Uncategorized"),
-                    "stack_size": 1,  # Steam database doesn't have this
-                    "craft_time": 0.0,  # Steam database doesn't have this
-                    "ingredients": [],  # Steam database doesn't have this
+                    "stack_size": steam_item.get("stack_size", 1),
+                    "craft_time": steam_item.get("craft_time", 0.0),
+                    "ingredients": steam_item.get("ingredients", []),
                     "picture_url": steam_item.get("image", "")
                 }
                 
@@ -1407,9 +1407,9 @@ class RustGameController:
                             "name": item_data.get("name", ""),
                             "description": item_data.get("description", ""),
                             "category": item_data.get("category", "Uncategorized"),
-                            "stack_size": 1,
-                            "craft_time": 0.0,
-                            "ingredients": [],
+                            "stack_size": item_data.get("stack_size", 1),
+                            "craft_time": item_data.get("craft_time", 0.0),
+                            "ingredients": item_data.get("ingredients", []),
                             "picture_url": item_data.get("image", "")
                         })
                 
