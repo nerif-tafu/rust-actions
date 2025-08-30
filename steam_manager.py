@@ -1092,7 +1092,9 @@ class SteamManager:
                         "romancandle.violet.item": "firework.romancandle.violet",
                         "halfheight_salvaged_bamboo_shelves.item": "salvaged.bamboo.shelves",
                         # Custom SMG mapping
-                        "smg.item": "smg.2"
+                        "smg.item": "smg.2",
+                        # Wooden barricade cover mapping
+                        "barricade.cover.wood.item": "barricade.wood.cover"
                     }
                     
                     if recipe_shortname in special_mappings:
