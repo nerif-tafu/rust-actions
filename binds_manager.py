@@ -354,6 +354,10 @@ class BindsManager:
                     current_section = "other"
                     continue
                 
+                # Skip empty lines at the beginning of the file
+                if current_section == "other" and not line.strip() and not other_binds:
+                    continue
+                
                 if current_section == "user":
                     user_binds.append(line)
                 elif current_section == "rust_actions":
@@ -361,11 +365,19 @@ class BindsManager:
                 else:
                     other_binds.append(line)
             
-            # If no section markers were found, treat all bind lines as other_binds (default Rust binds)
+            # If no section markers were found, treat all bind lines as user_binds (default Rust binds)
             if not any(line.strip() in ["#USER-SECTION-START", "#RUST-ACTIONS-START"] for line in lines):
-                other_binds = [line.rstrip('\n') for line in lines if line.strip() and not line.strip().startswith('#')]
-                user_binds = []
+                user_binds = [line.rstrip('\n') for line in lines if line.strip() and not line.strip().startswith('#')]
+                other_binds = []
                 rust_actions_binds = []
+            else:
+                # If we have sections, the user_binds should contain the default Rust binds
+                # and other_binds should be empty (since we don't want duplication)
+                if not other_binds:
+                    other_binds = []
+                
+                # If user_binds is empty but we have section markers, it means the file
+                # was corrupted or empty. In this case, we'll let the write method handle it.
             
             return user_binds, rust_actions_binds, other_binds
             
@@ -387,9 +399,9 @@ class BindsManager:
             user_binds, _, other_binds = self.read_existing_keys_cfg()
             logger.info(f"Read existing sections: {len(user_binds)} user binds, {len(other_binds)} other binds")
             
-            # If no existing file or no other_binds, create default Rust binds
-            if not other_binds:
-                other_binds = [
+            # If no existing file or no user_binds, create default Rust binds in user_binds
+            if not user_binds:
+                user_binds = [
                     "bind tab inventory.toggle",
                     "bind return chat.open",
                     "bind space +jump",
@@ -483,11 +495,7 @@ class BindsManager:
             # Combine all sections
             all_lines = []
             
-            # Add other binds (default Rust binds)
-            all_lines.extend(other_binds)
-            all_lines.append("")
-            
-            # Add user section
+            # Add user section (contains default Rust binds)
             all_lines.append("#USER-SECTION-START")
             all_lines.extend(user_binds)
             all_lines.append("#USER-SECTION-END")
@@ -501,11 +509,10 @@ class BindsManager:
             
             # Write to file
             with open(self.keys_cfg_path, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(all_lines))
+                f.write('\n'.join(all_lines) + '\n')
             
             print(f"Successfully wrote keys.cfg with {len(all_lines)} total lines")
-            print(f"  - {len(other_binds)} default Rust binds")
-            print(f"  - {len(user_binds)} user-defined binds")
+            print(f"  - {len(user_binds)} user-defined binds (including default Rust binds)")
             print(f"  - {len(rust_actions_binds)} rust-actions binds")
             return True
             
