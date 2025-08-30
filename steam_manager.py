@@ -969,7 +969,6 @@ class SteamManager:
                         "hat.nvg.item": "nightvisiongoggles",
                         "night.vision.goggles": "nightvisiongoggles",
                         "goggles.nightvision": "nightvisiongoggles",
-                        # Weapon mod mappings
                         "extendedmags.item": "weapon.mod.extendedmags",
                         "muzzlebooster.item": "weapon.mod.muzzleboost",
                         "muzzlebrake.item": "weapon.mod.muzzlebrake",
@@ -977,13 +976,11 @@ class SteamManager:
                         "holosight.item": "weapon.mod.holosight",
                         "lasersight.item": "weapon.mod.lasersight",
                         "targetingattachment.item": "weapon.mod.targetingattachment",
-                        # Tool/Trap mappings
                         "fishing_rod.item": "fishingrod.handmade",
                         "binoculars.item": "tool.binoculars",
                         "landmine.item": "trap.landmine",
                         "MixingTable.item": "mixingtable",
                         "hc_revolver.item": "revolver.hc",
-                        # Additional mappings
                         "nailgunnail.item": "ammo.nailgun.nails",
                         "Lead_ArmorInsert.item": "clothing.mod.armorinsert_lead",
                         "fireplace.item": "fireplace.stone",
@@ -992,12 +989,10 @@ class SteamManager:
                         "mixingtable.item": "mixingtable",
                         "detonator.item": "rf.detonator",
                         "mp5.item": "smg.mp5",
-                        # New mappings from comprehensive extraction
                         "rocket_launcher.item": "rocket.launcher",
                         "tshirt.long.blue.item": "tshirt.long",
                         "wall.external.high.stone.item": "wall.external.high.stone",
                         "wall.window.bars.wood.item": "wall.window.bars.wood",
-                        # Missing items - all found in bundle
                         "bass.item": "fun.bass",
                         "cowbell.item": "fun.cowbell",
                         "guitar.item": "fun.guitar",
@@ -1008,16 +1003,12 @@ class SteamManager:
                         "Wood_ArmorInsert.item": "clothing.mod.armorinsert_wood",
                         "rfpager.item": "rf_pager",
                         "TorpedoStraight.item": "submarine.torpedo.straight",
-                        # Additional exact matches found
                         "easter_door_wreath.item": "easterdoorwreath",
-                        # Non-craftable in Unity but craftable in database
                         "movember_moustache_card.item": "movembermoustachecard",
                         "spas12.item": "shotgun.spas12",
-                        # Electric/Smart items
                         "SmartSwitch.item": "smart.switch",
                         "SmartAlarm.item": "smart.alarm",
                         "electricfurnace.item": "electric.furnace",
-                        # Hide item mappings
                         "poncho.hide.item": "attire.hide.poncho",
                         "HideVest.item": "attire.hide.vest",
                         "pants.hide.item": "attire.hide.pants",
@@ -1028,14 +1019,12 @@ class SteamManager:
                         "electrical.heater.item": "electric.heater",
                         "electrical.random.switch.item": "electric.random.switch",
                         "electrical.blocker.item": "electric.blocker",
-                        # Additional electric items with different naming patterns
                         "RFReceiver.item": "electric.rf.receiver",
                         "RFBroadcaster.item": "electric.rf.broadcaster",
                         "Splitter.item": "electric.splitter",
                         "switch.item": "electric.switch",
                         "timer.item": "electric.timer",
                         "counter.item": "electric.counter",
-                        # New mappings from comprehensive analysis
                         "metalshield.item": "metal.shield",
                         "trophy_2023.item": "trophy2023",
                         "HazmatPlushy.item": "hazmat.plushy",
@@ -1091,12 +1080,97 @@ class SteamManager:
                         "HitchTrough.item": "hitchtroughcombo",
                         "romancandle.violet.item": "firework.romancandle.violet",
                         "halfheight_salvaged_bamboo_shelves.item": "salvaged.bamboo.shelves",
-                        # Custom SMG mapping
                         "smg.item": "smg.2",
-                        # Wooden barricade cover mapping
                         "barricade.cover.wood.item": "barricade.wood.cover",
-                        # Headset mapping
-                        "hat.cap.headset.item": "twitch.headset"
+                        "hat.cap.headset.item": "twitch.headset",
+                        "hat.coffeecan.item": "coffeecan.helmet",
+                        "gloves.roadsign.item": "roadsign.gloves",
+                        "roadsign_armor.item": "roadsign.jacket",
+                        "pants.roadsign.item": "roadsign.kilt",
+                        "gloves.burlap.item": "burlap.gloves",
+                        "mask.metal.item": "metal.facemask",
+                        "40mm_buckshot.item": "ammo.grenadelauncher.buckshot",
+                        "40mm_grenade_he.item": "ammo.grenadelauncher.he",
+                        "40mm_grenade_smoke.item": "ammo.grenadelauncher.smoke",
+                        "8xScope.item": "weapon.mod.8x.scope",
+                        "ANDSwitch.item": "electric.andswitch",
+                        "Asbestos_ArmorInsert.item": "clothing.mod.armorinsert_asbestos",
+                        "AudioAlarm.item": "electric.audioalarm",
+                        "Button.item": "electric.button",
+                        "DPV.item": "skidoo",
+                        "LaserDetector.item": "electric.laserdetector",
+                        "MGL.item": "multiplegrenadelauncher",
+                        "Metal_ArmorInsert.item": "clothing.mod.armorinsert_metal",
+                        "ORSwitch.item": "electric.orswitch",
+                        "SinglePlantPot.item": "plantpot.single",
+                        "XORSwitch.item": "electric.xorswitch",
+                        "ak47u.item": "rifle.ak",
+                        "ballista.item": "ballista.mounted",
+                        "beartrap.item": "trap.bear",
+                        "bolt_rifle.item": "rifle.bolt",
+                        "bucket.item": "bucket.helmet",
+                        "burstmodule.item": "weapon.mod.burstmodule",
+                        "car_radio.item": "vehicle.car_radio",
+                        "compound_bow.item": "bow.compound",
+                        "doorcloser.item": "door.closer",
+                        "doorcontroller.item": "electric.doorcontroller",
+                        "frogboots.item": "boots.frog",
+                        "fuel.lowgrade.item": "lowgradefuel",
+                        "gascompressionoverdrive.item": "weapon.mod.gascompressionovedrive",
+                        "generator.small.item": "electric.fuelgenerator.small",
+                        "glock.item": "pistol.prototype17",
+                        "gloves.tactical.item": "tactical.gloves",
+                        "hat.burlap.wrap.item": "burlap.headwrap",
+                        "hat.heavyplate.item": "heavy.plate.helmet",
+                        "hat.riot.item": "riot.helmet",
+                        "hbhfsensor.item": "electric.hbhfsensor",
+                        "igniter.item": "electric.igniter",
+                        "industrial.wall.lamp.blue.item": "industrial.wall.light.blue",
+                        "industrial.wall.lamp.green.item": "industrial.wall.light.green",
+                        "industrial.wall.lamp.item": "industrial.wall.light",
+                        "industrial.wall.lamp.red.item": "industrial.wall.light.red",
+                        "l96.item": "rifle.l96",
+                        "large.rechargable.battery.item": "electric.battery.rechargable.large",
+                        "lr300.item": "rifle.lr300",
+                        "m249.item": "lmg.m249",
+                        "m39.item": "rifle.m39",
+                        "m4_shotgun.item": "shotgun.m4",
+                        "m92.item": "pistol.m92",
+                        "mask.metal.item": "metal.facemask",
+                        "medium.rechargable.battery.item": "electric.battery.rechargable.medium",
+                        "nailgun.item": "pistol.nailgun",
+                        "oilfiltersilencer.item": "weapon.mod.oilfiltersilencer",
+                        "pressurepad.item": "electric.pressurepad",
+                        "python.item": "pistol.python",
+                        "reactivetarget.item": "target.reactive",
+                        "sam.site.item": "samsite",
+                        "scope.small.item": "weapon.mod.small.scope",
+                        "semi_auto_rifle.item": "rifle.semiauto",
+                        "silencer.item": "weapon.mod.silencer",
+                        "simpelight.item": "electric.simplelight",
+                        "simplesight.item": "weapon.mod.simplesight",
+                        "skinningknife.item": "knife.skinning",
+                        "sks.item": "rifle.sks",
+                        "small.rechargable.battery.item": "battery.small",
+                        "small_fuel_generator.item": "electric.fuelgenerator.small",
+                        "small_stash.item": "stash.small",
+                        "smoke_grenade.item": "grenade.smoke",
+                        "sodacansilencer.item": "weapon.mod.sodacansilencer",
+                        "solarpanel.large.item": "electric.solarpanel.large",
+                        "spring.item": "metalspring",
+                        "survivalfishtrap.item": "fishtrap.small",
+                        "teslacoil.item": "electric.teslacoil",
+                        "thompson.item": "smg.thompson",
+                        "hat.woodarmor.item": "wood.armor.helmet",
+                        "gloves.woodarmor.item": "woodarmor.gloves",
+                        "snowman": "attire.snowman.helmet",
+                        "wall_single_shallow_shelves.item": "single.shallow.wall.shelves",
+                        "sam.rocket.item": "ammo.rocket.sam",
+                        "pants.burlap.item": "burlap.trousers",
+                        "pants.heavyplate.item": "heavy.plate.pants",
+                        "jacket.bonearmor.item": "bone.armor.suit",
+                        "jacket.heavyplate.item": "heavy.plate.jacket",
+                        "militaryflamethrower.item": "military flamethrower"
                     }
                     
                     if recipe_shortname in special_mappings:
@@ -1140,7 +1214,8 @@ class SteamManager:
                     
                     if best_recipe:
                         # Add crafting data to the item
-                        item_data["userCraftable"] = best_recipe.get("user_craftable", False)
+                        # If we have a recipe for this item, it should be user craftable
+                        item_data["userCraftable"] = True
                         item_data["amountToCreate"] = best_recipe.get("amount_to_create", 1)
                         
                         # Convert ingredients to the format you specified
