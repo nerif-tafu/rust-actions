@@ -1017,6 +1017,13 @@ class SteamManager:
                         "SmartSwitch.item": "smart.switch",
                         "SmartAlarm.item": "smart.alarm",
                         "electricfurnace.item": "electric.furnace",
+                        # Hide item mappings
+                        "poncho.hide.item": "attire.hide.poncho",
+                        "HideVest.item": "attire.hide.vest",
+                        "pants.hide.item": "attire.hide.pants",
+                        "HideBoots.item": "attire.hide.boots",
+                        "halterneck.hide.item": "attire.hide.helterneck",
+                        "HideSkirt.item": "attire.hide.skirt",
                         "electrical.modularcarlift.item": "modularcarlift",
                         "electrical.heater.item": "electric.heater",
                         "electrical.random.switch.item": "electric.random.switch",
