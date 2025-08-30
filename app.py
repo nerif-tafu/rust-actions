@@ -449,7 +449,7 @@ class RustGameController:
             # First kill the player
             success = self.keyboard_manager.trigger_api_command("kill")
             if success:
-                time.sleep(0.1)  # Small delay between kill and respawn
+                time.sleep(1.0)  # Wait 1 second between kill and respawn
                 # Then respawn at specific sleeping bag
                 success = self.keyboard_manager.trigger_chat_command("respawn_sleepingbag", string_value=spawn_id_str)
             return {

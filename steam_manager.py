@@ -1094,7 +1094,9 @@ class SteamManager:
                         # Custom SMG mapping
                         "smg.item": "smg.2",
                         # Wooden barricade cover mapping
-                        "barricade.cover.wood.item": "barricade.wood.cover"
+                        "barricade.cover.wood.item": "barricade.wood.cover",
+                        # Headset mapping
+                        "hat.cap.headset.item": "twitch.headset"
                     }
                     
                     if recipe_shortname in special_mappings:

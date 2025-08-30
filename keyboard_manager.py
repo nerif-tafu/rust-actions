@@ -340,22 +340,15 @@ class KeyboardManager:
         for i, combo in enumerate(self.binds_manager.key_combinations):
             self._key_combo_cache[i] = combo.split('+')
         
-        # Now populate cache for dynamic binds from the binds_manager's data
-        # For dynamic binds, we need to use the correct key combinations based on command type
-        # Define the key combinations for each command type (fixed combinations as specified)
-        dynamic_key_combinations = {
-            "chat_say": "keypaddivide+keypadplus+keypad4+keypad7+period",
-            "chat_teamsay": "keypaddivide+keypadplus+keypad4+keypad7+leftbracket",
-            "client_connect": "keypaddivide+keypadplus+keypad4+keypad7+rightbracket",
-            "respawn": "keypaddivide+keypadplus+keypad4+keypad8+keypad9"
-        }
-        
-        # Populate cache for existing dynamic binds
+        # Populate cache for existing dynamic binds using the correct key combinations
         for bind_key, bind_index in self.binds_manager.dynamic_binds.items():
-            command_type = bind_key.split(":", 1)[0]
-            if command_type in dynamic_key_combinations:
-                key_combo = dynamic_key_combinations[command_type]
+            # Use the unique key combination for this bind index from the key_combinations list
+            if bind_index < len(self.binds_manager.key_combinations):
+                key_combo = self.binds_manager.key_combinations[bind_index]
                 self._key_combo_cache[bind_index] = key_combo.split('+')
+                logger.info(f"Cached dynamic bind {bind_index} ({bind_key}) with key combo: {key_combo}")
+            else:
+                logger.warning(f"Bind index {bind_index} exceeds available key combinations")
         
         # For empty dynamic bind slots, use the static key combinations
         for bind_index in range(self.binds_manager.CHAT_BINDS_START, self.binds_manager.CHAT_BINDS_END + 1):
@@ -387,11 +380,11 @@ class KeyboardManager:
         
         # Update cache for existing dynamic binds using unique key combinations
         for bind_key, bind_index in self.binds_manager.dynamic_binds.items():
-            command_type = bind_key.split(":", 1)[0]
-            # Use the unique key combination for this bind index
+            # Use the unique key combination for this bind index from the key_combinations list
             if bind_index < len(self.binds_manager.key_combinations):
                 key_combo = self.binds_manager.key_combinations[bind_index]
                 self._key_combo_cache[bind_index] = key_combo.split('+')
+                logger.info(f"Refreshed dynamic bind {bind_index} ({bind_key}) with key combo: {key_combo}")
             else:
                 logger.warning(f"Bind index {bind_index} exceeds available key combinations")
         
