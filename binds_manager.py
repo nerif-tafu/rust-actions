@@ -261,6 +261,7 @@ class BindsManager:
             ("chat_anti_afk_started", "chat.add 0 0 \"Anti-AFK started!\""),
             ("chat_anti_afk_stopped", "chat.add 0 0 \"Anti-AFK stopped!\""),
             ("cancel_all_crafting", "craft.cancelall;chat.add 0 0 \"All crafting cancelled!\""),
+            ("ent_kill", "ent kill;chat.add 0 0 \"Entity killed!\""),
         ]
         
         print(f"Generating API binds...")
@@ -752,7 +753,8 @@ class BindsManager:
             "chat_say": "chat.say",
             "chat_teamsay": "chat.teamsay",
             "client_connect": "disconnect;client.connect",
-            "respawn_sleepingbag": "respawn_sleepingbag"
+            "respawn_sleepingbag": "respawn_sleepingbag",
+            "inventory_give": "inventory.give"
         }
         
         # Generate binds for each stored dynamic bind
@@ -772,6 +774,9 @@ class BindsManager:
                 # Wrap string values in quotes for chat commands
                 if command_type in ["chat_say", "chat_teamsay"]:
                     command = f"{command_templates[command_type]} \"{string_value}\""
+                elif command_type == "inventory_give":
+                    # For inventory.give, the string_value is already the full command
+                    command = string_value
                 else:
                     command = f"{command_templates[command_type]} {string_value}"
                 bind = self._format_bind_command(key_combo, command)

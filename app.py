@@ -782,6 +782,32 @@ class RustGameController:
                 "message": f"Error: {str(e)}"
         }
     
+    def ent_kill(self) -> dict:
+        """Kill entity at crosshair"""
+        logger.info("Killing entity at crosshair")
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "ent_kill",
+                "message": "KeyboardManager not initialized"
+                }
+        
+        try:
+            success = self.keyboard_manager.trigger_api_command("ent_kill")
+            return {
+                "success": success,
+                "action": "ent_kill",
+                "message": "Entity killed successfully" if success else "Failed to kill entity"
+            }
+        except Exception as e:
+            logger.error(f"Error killing entity: {e}")
+            return {
+                "success": False,
+                "action": "ent_kill",
+                "message": f"Error: {str(e)}"
+            }
+    
     def global_chat(self, message: str) -> dict:
         """Send message to global chat using dynamic binds"""
         logger.info(f"Sending to global chat: {message}")
@@ -1628,6 +1654,90 @@ class RustGameController:
                 "message": f"Error: {str(e)}"
             }
     
+    def inventory_give_items(self, items: list) -> dict:
+        """Give multiple items to inventory using dynamic binds"""
+        logger.info(f"Giving {len(items)} items to inventory")
+        
+        if not self.keyboard_manager:
+            return {
+                "success": False,
+                "action": "inventory_give_items",
+                "message": "KeyboardManager not initialized"
+            }
+        
+        try:
+            results = []
+            new_binds_created = []
+            
+            for item in items:
+                item_name = item.get('item_name')
+                quantity = item.get('quantity', 1)
+                
+                if not item_name:
+                    results.append({
+                        "success": False,
+                        "item_name": item_name,
+                        "quantity": quantity,
+                        "message": "item_name is required"
+                    })
+                    continue
+                
+                # Create the inventory give command
+                command = f"inventory.give {item_name} {quantity}"
+                
+                # Check if this bind already exists before creating it
+                bind_key = f"inventory_give:{command}"
+                bind_exists = bind_key in self.keyboard_manager.binds_manager.dynamic_binds
+                
+                # Get or create dynamic bind for this command
+                bind_index = self.keyboard_manager.binds_manager.get_or_create_dynamic_bind("inventory_give", command)
+                
+                # If the bind didn't exist before, it's a new bind that needs to be written to keys.cfg
+                if not bind_exists:
+                    new_binds_created.append(bind_index)
+                
+                # Trigger the bind
+                success = self.keyboard_manager.trigger_bind(bind_index)
+                
+                results.append({
+                    "success": success,
+                    "item_name": item_name,
+                    "quantity": quantity,
+                    "bind_index": bind_index,
+                    "command": command,
+                    "message": f"Inventory give {'completed successfully' if success else 'failed'} for {item_name} ({quantity})"
+                })
+            
+            # If we created new binds, we need to regenerate keys.cfg and reload
+            if new_binds_created:
+                logger.info(f"Created {len(new_binds_created)} new inventory give binds, regenerating keys.cfg")
+                self.keyboard_manager.binds_manager.write_keys_cfg_with_sections_protected()
+                self.keyboard_manager._refresh_dynamic_bind_cache()
+                
+                # Reload the binds in the game by executing 'exec keys.cfg'
+                logger.info("Reloading binds in game with 'exec keys.cfg'")
+                reload_success = self.keyboard_manager.reload_binds()
+                if reload_success:
+                    logger.info("Successfully reloaded binds in game")
+                else:
+                    logger.warning("Failed to reload binds in game - new binds may not be active")
+            
+            return {
+                "success": True,
+                "action": "inventory_give_items",
+                "items_processed": len(items),
+                "new_binds_created": len(new_binds_created),
+                "results": results
+            }
+            
+        except Exception as e:
+            logger.error(f"Error giving items to inventory: {e}")
+            return {
+                "success": False,
+                "action": "inventory_give_items",
+                "message": f"Error: {str(e)}"
+            }
+    
 
 
 # Initialize the game controller (will be created when app starts)
@@ -1941,6 +2051,17 @@ def toggle_console():
         logger.error(f"Error in toggle_console: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/player/ent-kill', methods=['POST'])
+def ent_kill():
+    """Kill entity at crosshair"""
+    try:
+        controller = create_rust_controller()
+        result = controller.ent_kill()
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in ent_kill: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/chat/global', methods=['POST'])
 def global_chat():
     """Send message to global chat"""
@@ -2043,6 +2164,35 @@ def toggle_stack_inventory():
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in toggle_stack_inventory: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/inventory/give', methods=['POST'])
+def inventory_give():
+    """Give multiple items to inventory using dynamic binds"""
+    try:
+        data = request.get_json()
+        items = data.get('items', [])
+        
+        if not items:
+            return jsonify({"error": "items array is required"}), 400
+        
+        if not isinstance(items, list):
+            return jsonify({"error": "items must be an array"}), 400
+        
+        # Validate each item has required fields
+        for i, item in enumerate(items):
+            if not isinstance(item, dict):
+                return jsonify({"error": f"Item {i} must be an object"}), 400
+            if 'item_name' not in item:
+                return jsonify({"error": f"Item {i} missing required field 'item_name'"}), 400
+            if 'quantity' in item and not isinstance(item['quantity'], (int, float)):
+                return jsonify({"error": f"Item {i} quantity must be a number"}), 400
+        
+        controller = create_rust_controller()
+        result = controller.inventory_give_items(items)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in inventory_give: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/craft/cancel-all', methods=['POST'])

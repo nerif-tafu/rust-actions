@@ -106,6 +106,7 @@ RustGameController.exe
 - **POST** `/player/combat-log` - Toggle combat log
 - **POST** `/player/clear-console` - Clear console
 - **POST** `/player/toggle-console` - Toggle console
+- **POST** `/player/ent-kill` - Kill entity at crosshair
 
 ### Chat
 - **POST** `/chat/global` - Send message to global chat
@@ -119,6 +120,7 @@ RustGameController.exe
 ### Inventory
 - **POST** `/inventory/stack` - Stack inventory items
 - **POST** `/inventory/toggle-stack` - Enable/disable continuous stack inventory operations (includes chat feedback)
+- **POST** `/inventory/give` - Give multiple items to inventory using dynamic binds
 
 ### Settings
 - **POST** `/settings/look-radius` - Set look at radius (20.0 or 0.0002)
@@ -285,6 +287,11 @@ curl -X POST http://localhost:5000/player/clear-console
 curl -X POST http://localhost:5000/player/toggle-console
 ```
 
+**Kill Entity at Crosshair:**
+```bash
+curl -X POST http://localhost:5000/player/ent-kill
+```
+
 ### Chat Messages
 
 **Global Chat:**
@@ -329,6 +336,19 @@ curl -X POST http://localhost:5000/inventory/stack \
 curl -X POST http://localhost:5000/inventory/toggle-stack \
   -H "Content-Type: application/json" \
   -d '{"enable": true}'
+```
+
+**Give Items to Inventory:**
+```bash
+curl -X POST http://localhost:5000/inventory/give \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {"item_name": "wood", "quantity": 1000},
+      {"item_name": "stone", "quantity": 500},
+      {"item_name": "metal.fragments", "quantity": 200}
+    ]
+  }'
 ```
 
 ### Anti-AFK

@@ -478,23 +478,25 @@ class RustControllerGUI:
                 "quit_game": "/game/quit",
                 "disconnect": "/game/disconnect",
                 "connect": "/game/connect",
-                "stack_inventory": "/inventory/stack",
-                "set_look_radius": "/settings/look-radius",
-                "set_voice_volume": "/settings/voice-volume",
-                "set_master_volume": "/settings/master-volume",
-                "set_hud_state": "/settings/hud",  # Changed from /settings/hud-state to /settings/hud
-                "copy_json": "/clipboard/copy-json",
-                "type_string": "/input/type-enter",  # Changed from /input/type to /input/type-enter
-                "start_anti_afk": "/anti-afk/start",
-                "stop_anti_afk": "/anti-afk/stop",
-                "toggle_stack_inventory": "/inventory/toggle-stack",
+                            "stack_inventory": "/inventory/stack",
+            "inventory_give": "/inventory/give",
+            "set_look_radius": "/settings/look-radius",
+            "set_voice_volume": "/settings/voice-volume",
+            "set_master_volume": "/settings/master-volume",
+            "set_hud_state": "/settings/hud",  # Changed from /settings/hud-state to /settings/hud
+            "copy_json": "/clipboard/copy-json",
+            "type_string": "/input/type-enter",  # Changed from /input/type to /input/type-enter
+            "start_anti_afk": "/anti-afk/start",
+            "stop_anti_afk": "/anti-afk/stop",
+            "toggle_stack_inventory": "/inventory/toggle-stack",
                 "noclip_toggle": "/player/noclip",
                 "god_mode_toggle": "/player/god-mode",
                 "set_time": "/player/set-time",
                 "teleport_to_marker": "/player/teleport-marker",
                 "toggle_combat_log": "/player/combat-log",
                 "clear_console": "/player/clear-console",
-                "toggle_console": "/player/toggle-console"
+                "toggle_console": "/player/toggle-console",
+                "ent_kill": "/player/ent-kill"
             }
             
             endpoint = endpoint_map.get(action)
@@ -506,7 +508,7 @@ class RustControllerGUI:
             
             # Determine timeout based on action type
             # Long-running operations need more time
-            if action in ["stack_inventory", "cancel_all_crafting", "toggle_stack_inventory"]:
+            if action in ["stack_inventory", "cancel_all_crafting", "toggle_stack_inventory", "inventory_give"]:
                 timeout = 120  # 2 minutes for long operations
             else:
                 timeout = 5    # 5 seconds for regular operations
@@ -569,6 +571,7 @@ class RustControllerGUI:
             "disconnect": "/game/disconnect",
             "connect": "/game/connect",
             "stack_inventory": "/inventory/stack",
+            "inventory_give": "/inventory/give",
             "set_look_radius": "/settings/look-radius",
             "set_voice_volume": "/settings/voice-volume",
             "set_master_volume": "/settings/master-volume",
@@ -582,7 +585,8 @@ class RustControllerGUI:
             "teleport_to_marker": "/player/teleport-marker",
             "toggle_combat_log": "/player/combat-log",
             "clear_console": "/player/clear-console",
-            "toggle_console": "/player/toggle-console"
+            "toggle_console": "/player/toggle-console",
+            "ent_kill": "/player/ent-kill"
         }
         
         endpoint = endpoint_map.get(action)
@@ -621,6 +625,107 @@ class RustControllerGUI:
                 messagebox.showerror("Clipboard Error", f"Failed to copy to clipboard: {str(e)}")
         else:
             messagebox.showerror("Error", f"Could not generate PowerShell command for action: {action}")
+
+    def give_inventory_items(self):
+        """Give multiple items to inventory using the inventory give API"""
+        json_text = self.inventory_give_json_text.get("1.0", tk.END).strip()
+        
+        if not json_text:
+            messagebox.showerror("Error", "Please enter JSON data")
+            return
+        
+        try:
+            import json
+            items = json.loads(json_text)
+            
+            if not isinstance(items, list):
+                messagebox.showerror("Error", "JSON must be an array of objects")
+                return
+            
+            if not items:
+                messagebox.showerror("Error", "JSON array cannot be empty")
+                return
+            
+            # Validate each item
+            for i, item in enumerate(items):
+                if not isinstance(item, dict):
+                    messagebox.showerror("Error", f"Item {i} must be an object")
+                    return
+                
+                if 'item_name' not in item:
+                    messagebox.showerror("Error", f"Item {i} missing required field 'item_name'")
+                    return
+                
+                if 'quantity' in item and not isinstance(item['quantity'], (int, float)):
+                    messagebox.showerror("Error", f"Item {i} quantity must be a number")
+                    return
+                
+                if 'quantity' in item and item['quantity'] <= 0:
+                    messagebox.showerror("Error", f"Item {i} quantity must be greater than 0")
+                    return
+            
+        except json.JSONDecodeError as e:
+            messagebox.showerror("Error", f"Invalid JSON format: {str(e)}")
+            return
+        except Exception as e:
+            messagebox.showerror("Error", f"Error parsing JSON: {str(e)}")
+            return
+        
+        # Call the API
+        self.test_api_call("inventory_give", {"items": items})
+    
+    def copy_inventory_give_curl(self):
+        """Copy the inventory give PowerShell command to clipboard"""
+        json_text = self.inventory_give_json_text.get("1.0", tk.END).strip()
+        
+        if not json_text:
+            messagebox.showerror("Error", "Please enter JSON data")
+            return
+        
+        try:
+            import json
+            items = json.loads(json_text)
+            
+            if not isinstance(items, list):
+                messagebox.showerror("Error", "JSON must be an array of objects")
+                return
+            
+            if not items:
+                messagebox.showerror("Error", "JSON array cannot be empty")
+                return
+            
+            # Validate each item
+            for i, item in enumerate(items):
+                if not isinstance(item, dict):
+                    messagebox.showerror("Error", f"Item {i} must be an object")
+                    return
+                
+                if 'item_name' not in item:
+                    messagebox.showerror("Error", f"Item {i} missing required field 'item_name'")
+                    return
+                
+                if 'quantity' in item and not isinstance(item['quantity'], (int, float)):
+                    messagebox.showerror("Error", f"Item {i} quantity must be a number")
+                    return
+                
+                if 'quantity' in item and item['quantity'] <= 0:
+                    messagebox.showerror("Error", f"Item {i} quantity must be greater than 0")
+                    return
+            
+        except json.JSONDecodeError as e:
+            messagebox.showerror("Error", f"Invalid JSON format: {str(e)}")
+            return
+        except Exception as e:
+            messagebox.showerror("Error", f"Error parsing JSON: {str(e)}")
+            return
+        
+        # Generate and copy the PowerShell command
+        self.copy_curl_to_clipboard("inventory_give", {"items": items})
+    
+    def clear_inventory_json(self):
+        """Clear the JSON input text box"""
+        self.inventory_give_json_text.delete("1.0", tk.END)
+        self.inventory_give_json_text.insert(tk.END, '[{"item_name": "wood", "quantity": 1000}]')
 
     
 
@@ -1217,6 +1322,35 @@ class RustControllerGUI:
         ttk.Button(toggle_stack_frame, text="Copy Disable PowerShell", 
                   command=lambda: self.copy_curl_to_clipboard("toggle_stack_inventory", {"enable": False})).pack(side=tk.LEFT)
         
+        # Inventory Give Section
+        inventory_give_frame = ttk.Frame(crafting_frame)
+        inventory_give_frame.pack(fill="x", pady=(10, 0))
+        
+        # JSON Input Label
+        ttk.Label(inventory_give_frame, text="Items JSON (array of objects with 'item_name' and 'quantity'):").pack(anchor=tk.W, pady=(0, 5))
+        
+        # JSON Input Text Box
+        json_frame = ttk.Frame(inventory_give_frame)
+        json_frame.pack(fill="x", pady=(0, 5))
+        
+        self.inventory_give_json_var = tk.StringVar(value='[{"item_name": "wood", "quantity": 1000}]')
+        self.inventory_give_json_text = scrolledtext.ScrolledText(json_frame, height=4, width=50)
+        self.inventory_give_json_text.pack(fill="x", expand=True)
+        self.inventory_give_json_text.insert(tk.END, self.inventory_give_json_var.get())
+        
+        # Buttons
+        buttons_frame = ttk.Frame(inventory_give_frame)
+        buttons_frame.pack(fill="x", pady=(5, 0))
+        
+        ttk.Button(buttons_frame, text="Give Items", 
+                  command=self.give_inventory_items).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(buttons_frame, text="Copy PowerShell", 
+                  command=self.copy_inventory_give_curl).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(buttons_frame, text="Clear JSON", 
+                  command=self.clear_inventory_json).pack(side=tk.LEFT, padx=(0, 5))
+        
         # Player Actions Section
         player_frame = ttk.LabelFrame(scrollable_frame, text="Player Actions", padding="5")
         player_frame.pack(fill="x", pady=(0, 10))
@@ -1387,7 +1521,13 @@ class RustControllerGUI:
                   command=lambda: self.test_api_call("toggle_combat_log", {})).pack(side=tk.LEFT, padx=(0, 5))
         
         ttk.Button(teleport_console_frame, text="Copy PowerShell", 
-                  command=lambda: self.copy_curl_to_clipboard("toggle_combat_log", {})).pack(side=tk.LEFT)
+                  command=lambda: self.copy_curl_to_clipboard("toggle_combat_log", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(teleport_console_frame, text="Ent Kill", 
+                  command=lambda: self.test_api_call("ent_kill", {})).pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(teleport_console_frame, text="Copy PowerShell", 
+                  command=lambda: self.copy_curl_to_clipboard("ent_kill", {})).pack(side=tk.LEFT)
         
         # Console Controls
         console_frame = ttk.Frame(admin_frame)

@@ -649,6 +649,7 @@ class KeyboardManager:
             "chat_anti_afk_started": 3061,
             "chat_anti_afk_stopped": 3062,
             "cancel_all_crafting": 3063,
+            "ent_kill": 3064,
         }
         
         bind_index = api_commands.get(command_name)
