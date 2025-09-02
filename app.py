@@ -1756,7 +1756,7 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "service": "Rust Game Controller API",
-        "version": "1.0.0"
+        "version": "1.1.0"
     })
 
 @app.route('/craft/id', methods=['POST'])
