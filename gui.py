@@ -439,7 +439,7 @@ class RustControllerGUI:
         db_info.pack(anchor=tk.W)
         
         # Version info
-        version_info = ttk.Label(info_frame, text="Version: 1.1.0")
+        version_info = ttk.Label(info_frame, text="Version: 1.2.0")
         version_info.pack(anchor=tk.W)
         
         # API Database Management frame (left column)
@@ -1897,7 +1897,7 @@ class RustControllerGUI:
         """Show about dialog"""
         messagebox.showinfo("About", 
                            "Rust Game Controller API\n\n"
-                           "Version: 1.1.0\n"
+                           "Version: 1.2.0\n"
                            "A tool for controlling Rust game through API commands.\n\n"
                            "Features:\n"
                            "• Inventory management\n"
