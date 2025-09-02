@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from steam_manager import steam_manager
+from api_data_manager import api_data_manager
 from keyboard_manager import KeyboardManager
 
 # Configure logging
@@ -1293,7 +1293,7 @@ class RustGameController:
     def get_all_items(self) -> dict:
         """Get all items from database"""
         try:
-            steam_items = steam_manager.get_all_items()
+            steam_items = api_data_manager.get_all_items()
             if steam_items:
                 # Convert database format to match expected format
                 items_list = []
@@ -1332,10 +1332,10 @@ class RustGameController:
                 "message": f"Error retrieving items: {str(e)}"
             }
     
-    def get_item_by_id(self, item_id: str) -> dict:
+    def get_item_by_id(self, item_id: str):
         """Get item by ID"""
         try:
-            steam_item = steam_manager.get_item_by_id(item_id)
+            steam_item = api_data_manager.get_item_by_id(item_id)
             if steam_item:
                 # Convert database format to match expected format
                 item_dict = {
@@ -1372,7 +1372,7 @@ class RustGameController:
     def get_items_by_category(self, category: str) -> dict:
         """Get items by category"""
         try:
-            steam_items = steam_manager.get_all_items()
+            steam_items = api_data_manager.get_all_items()
             if steam_items:
                 # Filter items by category
                 matching_items = []
@@ -1417,7 +1417,7 @@ class RustGameController:
     def search_items(self, query: str) -> dict:
         """Search items by name or description"""
         try:
-            steam_items = steam_manager.get_all_items()
+            steam_items = api_data_manager.get_all_items()
             if steam_items:
                 # Search in Steam database
                 matching_items = []
@@ -1473,7 +1473,7 @@ class RustGameController:
     def get_categories(self) -> dict:
         """Get all categories"""
         try:
-            steam_items = steam_manager.get_all_items()
+            steam_items = api_data_manager.get_all_items()
             if steam_items:
                 # Extract unique categories from Steam database
                 categories = set()
@@ -1508,13 +1508,13 @@ class RustGameController:
     def get_database_stats(self) -> dict:
         """Get database statistics"""
         try:
-            steam_stats = steam_manager.get_database_stats()
+            steam_stats = api_data_manager.get_database_stats()
             if steam_stats:
                 item_count = steam_stats.get('itemCount', 0)
                 last_updated = steam_stats.get('lastUpdated', '')
                 
-                # Get categories from Steam database
-                steam_items = steam_manager.get_all_items()
+                # Get categories from API database
+                steam_items = api_data_manager.get_all_items()
                 categories = set()
                 if steam_items:
                     for item_data in steam_items.values():
@@ -2524,7 +2524,7 @@ def steam_login():
         if not username or not password:
             return jsonify({"error": "Username and password are required"}), 400
         
-        result = steam_manager.steam_login(username, password)
+        result = {"success": False, "message": "Steam login not supported with new API system"}
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in steam_login: {e}")
@@ -2534,7 +2534,7 @@ def steam_login():
 def steam_status():
     """Check Steam login status"""
     try:
-        result = steam_manager.check_steam_login()
+        result = {"success": True, "loggedIn": False, "message": "Steam login not required with new API system"}
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in steam_status: {e}")
@@ -2551,8 +2551,7 @@ def update_steam_database():
             # For API calls, we'll just log the progress
             logger.info(f"Progress {progress}%: {message}")
         
-        result = steam_manager.update_item_database(
-            credentials=credentials,
+        result = api_data_manager.update_item_database(
             progress_callback=progress_callback
         )
         return jsonify(result)
@@ -2564,7 +2563,7 @@ def update_steam_database():
 def reset_steam_database():
     """Reset the item database"""
     try:
-        result = steam_manager.reset_item_database()
+        result = api_data_manager.reset_item_database()
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in reset_steam_database: {e}")
@@ -2574,7 +2573,7 @@ def reset_steam_database():
 def get_steam_items():
     """Get all items from Steam database"""
     try:
-        items = steam_manager.get_all_items()
+        items = api_data_manager.get_all_items()
         return jsonify({
             "success": True,
             "items": items,
@@ -2593,8 +2592,8 @@ def get_craftable_items():
         craftable_items = {}
         for item in controller.keyboard_manager.binds_manager.craftable_items:
             item_id = item['id']
-            # Get the full item data from steam_manager
-            full_item = steam_manager.get_item_by_id(item_id)
+            # Get the full item data from API data manager
+            full_item = api_data_manager.get_item_by_id(item_id)
             if full_item:
                 craftable_items[item_id] = full_item
         
@@ -2611,7 +2610,7 @@ def get_craftable_items():
 def get_steam_item(item_id):
     """Get item by ID from Steam database"""
     try:
-        item = steam_manager.get_item_by_id(item_id)
+        item = api_data_manager.get_item_by_id(item_id)
         if item:
             return jsonify({
                 "success": True,
@@ -2630,7 +2629,7 @@ def get_steam_item(item_id):
 def get_steam_stats():
     """Get Steam database statistics"""
     try:
-        stats = steam_manager.get_database_stats()
+        stats = api_data_manager.get_database_stats()
         return jsonify({
             "success": True,
             "stats": stats
@@ -2643,7 +2642,7 @@ def get_steam_stats():
 def test_steam_installation():
     """Test SteamCMD installation"""
     try:
-        result = steam_manager.test_steamcmd_installation()
+        result = api_data_manager.test_api_connection()
         return jsonify({
             "success": True,
             "test_result": result
@@ -2658,7 +2657,7 @@ def serve_steam_image(filename):
     """Serve Steam item images"""
     try:
         from flask import send_from_directory
-        return send_from_directory(steam_manager.images_dir, filename)
+        return send_from_directory(api_data_manager.images_dir, filename)
     except Exception as e:
         logger.error(f"Error serving Steam image {filename}: {e}")
         return jsonify({"error": "Image not found"}), 404
@@ -2668,7 +2667,7 @@ def serve_steam_image(filename):
 def get_crafting_recipe(item_id):
     """Get crafting recipe for a specific item"""
     try:
-        recipe = steam_manager.get_crafting_recipe(item_id)
+        recipe = api_data_manager.get_crafting_recipe(item_id)
         if recipe:
             return jsonify({
                 "success": True,
@@ -2687,7 +2686,7 @@ def get_crafting_recipe(item_id):
 def get_all_crafting_recipes():
     """Get all crafting recipes"""
     try:
-        recipes = steam_manager.get_all_crafting_recipes()
+        recipes = api_data_manager.get_all_crafting_recipes()
         return jsonify({
             "success": True,
             "recipes": recipes.get("recipes", []),
@@ -2723,12 +2722,12 @@ def update_crafting_data():
                 "error": "items.preload.bundle not found. Please run 'Update Item Database' first to download Rust client files."
             }), 404
         
-        # Extract crafting data using Unity asset extractor and merge into database
-        result = steam_manager.extract_crafting_data_from_bundles(bundle_path)
+        # Crafting data is now handled by the API, no need for Unity extraction
+        result = {"success": True, "message": "Crafting data is automatically updated with item database"}
         
         if result.get("success"):
-            # Get the merge result from the steam manager
-            merge_result = steam_manager.merge_crafting_data_into_database(result["crafting_data"])
+            # No need to merge since API provides complete data
+            merge_result = {"success": True, "recipes_added": 0, "total_recipes": 0}
             
             if merge_result.get("success"):
                 logger.info(f"Merged {merge_result['recipes_added']} crafting recipes into item database")

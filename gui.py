@@ -13,7 +13,7 @@ from PIL import Image, ImageTk
 import pystray
 from pystray import MenuItem as item
 import winreg
-from steam_manager import steam_manager
+from api_data_manager import api_data_manager
 import atexit
 import pyperclip
 import requests
@@ -51,7 +51,144 @@ class RustControllerGUI:
         # Run GUI in main thread (simpler and more reliable)
         self._run_gui()
     
-
+    def setup_window_icon(self):
+        """Set the window icon using PhotoImage (keyfree-companion method)"""
+        try:
+            import os
+            import sys
+            
+            # Handle both development and packaged executable paths
+            if getattr(sys, 'frozen', False):
+                # Running as executable
+                base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
+            else:
+                # Running as script
+                base_path = os.path.dirname(__file__)
+            
+            # Try camera.png first (PNG files work better with iconphoto)
+            for icon_name in ['camera.png', 'rust_controller.png', 'camera.ico', 'rust_controller.ico']:
+                icon_path = os.path.join(base_path, icon_name)
+                if os.path.exists(icon_path):
+                    try:
+                        if icon_name.endswith('.png'):
+                            # Load and set the icon using PhotoImage (keyfree-companion approach)
+                            icon_image = tk.PhotoImage(file=icon_path)
+                            self.root.iconphoto(True, icon_image)
+                            # Keep a reference to prevent garbage collection
+                            self.window_icon = icon_image
+                            self.log_message(f"✅ Set window icon using PhotoImage: {icon_name}")
+                            return
+                        else:
+                            # Fallback to iconbitmap for ICO files
+                            self.root.iconbitmap(icon_path)
+                            self.log_message(f"✅ Set window icon using iconbitmap: {icon_name}")
+                            return
+                    except Exception as e:
+                        self.log_message(f"⚠️ Failed to load {icon_name}: {e}")
+                        continue
+            
+            self.log_message("⚠️ No suitable icon files found")
+        except Exception as e:
+            self.log_message(f"⚠️ Failed to set window icon: {e}")
+    
+    def setup_taskbar_icon(self):
+        """Set the taskbar icon for Windows (additional method for better compatibility)"""
+        try:
+            import os
+            import sys
+            
+            # Handle both development and packaged executable paths
+            if getattr(sys, 'frozen', False):
+                # Running as executable
+                base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
+            else:
+                # Running as script
+                base_path = os.path.dirname(__file__)
+            
+            # Try to set taskbar icon using ICO file (best for Windows)
+            for icon_name in ['rust_controller.ico', 'camera.ico']:
+                icon_path = os.path.join(base_path, icon_name)
+                if os.path.exists(icon_path):
+                    try:
+                        # Set the window icon again specifically for taskbar
+                        self.root.iconbitmap(icon_path)
+                        self.log_message(f"✅ Set taskbar icon: {icon_name}")
+                        return
+                    except Exception as e:
+                        self.log_message(f"⚠️ Failed to set taskbar icon {icon_name}: {e}")
+                        continue
+            
+            self.log_message("⚠️ No suitable ICO file found for taskbar icon")
+        except Exception as e:
+            self.log_message(f"⚠️ Failed to set taskbar icon: {e}")
+    
+    def setup_menu_bar_icon(self):
+        """Set the menu bar icon for Windows (additional method for better compatibility)"""
+        try:
+            import os
+            import sys
+            
+            # Handle both development and packaged executable paths
+            if getattr(sys, 'frozen', False):
+                # Running as executable
+                base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
+            else:
+                # Running as script
+                base_path = os.path.dirname(__file__)
+            
+            # Try to set menu bar icon using ICO file (best for Windows)
+            for icon_name in ['rust_controller.ico', 'camera.ico']:
+                icon_path = os.path.join(base_path, icon_name)
+                if os.path.exists(icon_path):
+                    try:
+                        # Set the window icon again specifically for menu bar
+                        self.root.iconbitmap(icon_path)
+                        self.log_message(f"✅ Set menu bar icon: {icon_name}")
+                        return
+                    except Exception as e:
+                        self.log_message(f"⚠️ Failed to set menu bar icon {icon_name}: {e}")
+                        continue
+            
+            self.log_message("⚠️ No suitable ICO file found for menu bar icon")
+        except Exception as e:
+            self.log_message(f"⚠️ Failed to set menu bar icon: {e}")
+    
+    def optimize_icon_for_system_tray(self):
+        """Optimize the icon for system tray use with better transparency handling"""
+        try:
+            if hasattr(self, 'icon_image') and self.icon_image:
+                # Ensure the icon is in the best format for system tray
+                if self.icon_image.mode == 'RGBA':
+                    # RGBA is ideal for transparency - keep it
+                    self.log_message("✅ Icon is already in RGBA mode (best for transparency)")
+                elif self.icon_image.mode == 'LA':
+                    # LA mode has transparency - convert to RGBA for better compatibility
+                    self.icon_image = self.icon_image.convert('RGBA')
+                    self.log_message("✅ Converted LA icon to RGBA for better transparency")
+                elif self.icon_image.mode == 'P':
+                    # P mode (palette) - try to preserve transparency
+                    try:
+                        self.icon_image = self.icon_image.convert('RGBA')
+                        self.log_message("✅ Converted P icon to RGBA for better transparency")
+                    except:
+                        # If conversion fails, fall back to RGB
+                        self.icon_image = self.icon_image.convert('RGB')
+                        self.log_message("⚠️ Converted P icon to RGB (transparency lost)")
+                elif self.icon_image.mode == 'RGB':
+                    # RGB mode - no transparency, but acceptable
+                    self.log_message("ℹ️ Icon is in RGB mode (no transparency)")
+                else:
+                    # Other modes - convert to RGB
+                    self.icon_image = self.icon_image.convert('RGB')
+                    self.log_message(f"⚠️ Converted {self.icon_image.mode} icon to RGB")
+                
+                # Ensure the icon is the right size for system tray
+                if self.icon_image.size != (64, 64):
+                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                    self.log_message("✅ Resized icon to 64x64 for system tray")
+                    
+        except Exception as e:
+            self.log_message(f"⚠️ Error optimizing icon for system tray: {e}")
     
     def _fetch_database_stats(self):
         """Fetch database statistics (called from background thread)"""
@@ -113,49 +250,24 @@ class RustControllerGUI:
         self.root.geometry("1200x700")
         self.root.minsize(1000, 500)
         
-        # Set window icon using keyfree-companion's exact approach
-        def setup_window_icon():
-            """Set the window icon using PhotoImage (keyfree-companion method)"""
-            try:
-                import os
-                import sys
-                
-                # Handle both development and packaged executable paths
-                if getattr(sys, 'frozen', False):
-                    # Running as executable
-                    base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
-                else:
-                    # Running as script
-                    base_path = os.path.dirname(__file__)
-                
-                # Try camera.png first (PNG files work better with iconphoto)
-                for icon_name in ['camera.png', 'rust_controller.png', 'camera.ico', 'rust_controller.ico']:
-                    icon_path = os.path.join(base_path, icon_name)
-                    if os.path.exists(icon_path):
-                        try:
-                            if icon_name.endswith('.png'):
-                                # Load and set the icon using PhotoImage (keyfree-companion approach)
-                                icon_image = tk.PhotoImage(file=icon_path)
-                                self.root.iconphoto(True, icon_image)
-                                # Keep a reference to prevent garbage collection
-                                self.window_icon = icon_image
-                                self.log_message(f"✅ Set window icon using PhotoImage: {icon_name}")
-                                return
-                            else:
-                                # Fallback to iconbitmap for ICO files
-                                self.root.iconbitmap(icon_path)
-                                self.log_message(f"✅ Set window icon using iconbitmap: {icon_name}")
-                                return
-                        except Exception as e:
-                            self.log_message(f"⚠️ Failed to load {icon_name}: {e}")
-                            continue
-                
-                self.log_message("⚠️ No suitable icon files found")
-            except Exception as e:
-                self.log_message(f"⚠️ Failed to set window icon: {e}")
+        # Set Windows-specific properties for better icon handling
+        try:
+            # Set window class name for Windows (helps with icon association)
+            self.root.wm_class("RustGameController")
+            # Set window name for Windows (helps with taskbar grouping)
+            self.root.wm_name("Rust Game Controller")
+        except Exception as e:
+            # Silently fail if not on Windows
+            pass
         
         # Set the icon immediately using keyfree-companion's method
-        setup_window_icon()
+        self.setup_window_icon()
+        
+        # Set taskbar icon for Windows (additional method for better compatibility)
+        self.setup_taskbar_icon()
+        
+        # Set menu bar icon for Windows (additional method for better compatibility)
+        self.setup_menu_bar_icon()
         
         # Create GUI
         self.create_widgets()
@@ -330,53 +442,31 @@ class RustControllerGUI:
         version_info = ttk.Label(info_frame, text="Version: 1.0.0")
         version_info.pack(anchor=tk.W)
         
-        # Steam Login frame (left column)
-        steam_frame = ttk.LabelFrame(main_frame, text="Steam Integration", padding="5")
-        steam_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 10), padx=(0, 5))
+        # API Database Management frame (left column)
+        database_frame = ttk.LabelFrame(main_frame, text="API Database Management", padding="5")
+        database_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 10), padx=(0, 5))
         
-        # Steam status
-        self.steam_status_var = tk.StringVar(value="Checking Steam login...")
-        steam_status_label = ttk.Label(steam_frame, textvariable=self.steam_status_var)
-        steam_status_label.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 5))
+        # Database status
+        self.database_status_var = tk.StringVar(value="Checking API connection...")
+        database_status_label = ttk.Label(database_frame, textvariable=self.database_status_var)
+        database_status_label.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 5))
         
-        # Steam login controls
-        ttk.Label(steam_frame, text="Username:").grid(row=1, column=0, sticky=tk.W, padx=(0, 5))
-        self.steam_username_var = tk.StringVar()
-        self.steam_username_entry = ttk.Entry(steam_frame, textvariable=self.steam_username_var, width=20)
-        self.steam_username_entry.grid(row=1, column=1, sticky=tk.W, padx=(0, 5))
+        # Database management buttons
+        self.update_database_button = ttk.Button(database_frame, text="Update Item Database", command=self.update_item_database)
+        self.update_database_button.grid(row=1, column=0, padx=(0, 5))
         
-        ttk.Label(steam_frame, text="Password:").grid(row=1, column=2, sticky=tk.W, padx=(0, 5))
-        self.steam_password_var = tk.StringVar()
-        self.steam_password_entry = ttk.Entry(steam_frame, textvariable=self.steam_password_var, show="*", width=20)
-        self.steam_password_entry.grid(row=1, column=3, sticky=tk.W, padx=(0, 5))
-        
-        ttk.Label(steam_frame, text="2FA Code:").grid(row=1, column=4, sticky=tk.W, padx=(0, 5))
-        self.steam_2fa_var = tk.StringVar()
-        self.steam_2fa_entry = ttk.Entry(steam_frame, textvariable=self.steam_2fa_var, show="*", width=20)
-        self.steam_2fa_entry.grid(row=1, column=5, sticky=tk.W, padx=(0, 5))
-        
-        # Steam buttons
-        self.steam_login_button = ttk.Button(steam_frame, text="Login to Steam", command=self.steam_login)
-        self.steam_login_button.grid(row=1, column=6, padx=(5, 0))
-        
-        self.update_database_button = ttk.Button(steam_frame, text="Update Item Database", command=self.update_item_database)
-        self.update_database_button.grid(row=1, column=7, padx=(5, 0))
-        
-        self.process_assets_button = ttk.Button(steam_frame, text="Process Assets Only", command=self.process_assets_only)
-        self.process_assets_button.grid(row=1, column=8, padx=(5, 0))
-        
-        self.regenerate_binds_button = ttk.Button(steam_frame, text="Regenerate Rust-Actions Binds", command=self.regenerate_rust_actions_binds)
-        self.regenerate_binds_button.grid(row=1, column=9, padx=(5, 0))
+        self.regenerate_binds_button = ttk.Button(database_frame, text="Regenerate Rust-Actions Binds", command=self.regenerate_rust_actions_binds)
+        self.regenerate_binds_button.grid(row=1, column=1, padx=(0, 5))
         
         # Progress bar for database updates
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(steam_frame, variable=self.progress_var, maximum=100)
-        self.progress_bar.grid(row=2, column=0, columnspan=9, sticky=(tk.W, tk.E), pady=(5, 0))
+        self.progress_bar = ttk.Progressbar(database_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 0))
         
         # Progress label
         self.progress_label_var = tk.StringVar(value="")
-        progress_label = ttk.Label(steam_frame, textvariable=self.progress_label_var)
-        progress_label.grid(row=3, column=0, columnspan=9, sticky=(tk.W, tk.E), pady=(2, 0))
+        progress_label = ttk.Label(database_frame, textvariable=self.progress_label_var)
+        progress_label.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(2, 0))
         
         # API Testing Panel (right column) - hidden by default
         self.api_panel_visible = False
@@ -735,7 +825,7 @@ class RustControllerGUI:
     def refresh_item_dropdowns(self):
         """Refresh the item dropdowns with data from the database"""
         try:
-            # Get craftable items from the Steam database (only items with ingredients)
+            # Get craftable items from the API database (only items with ingredients)
             response = requests.get("http://localhost:5000/steam/craftable-items", timeout=5)
             if response.status_code == 200:
                 data = response.json()
@@ -744,7 +834,7 @@ class RustControllerGUI:
                     item_names = []
                     items_dict = data['items']
                     
-                    # Handle dictionary format from steam_manager.get_all_items()
+                    # Handle dictionary format from API data manager
                     for item_id, item_data in items_dict.items():
                         if isinstance(item_data, dict):
                             name = item_data.get('name', '')
@@ -843,17 +933,33 @@ class RustControllerGUI:
                 
                 # Try to load icon from bundled files
                 icon_found = False
-                for icon_name in ["camera.ico", "camera.png", "rust_controller.ico", "rust_controller.png"]:
+                for icon_name in ["rust_controller.ico", "camera.ico", "rust_controller.png", "camera.png"]:
                     icon_path = os.path.join(base_path, icon_name)
                     if os.path.exists(icon_path):
                         try:
                             self.icon_image = Image.open(icon_path)
-                            # Convert to RGB for system tray compatibility
-                            if self.icon_image.mode != 'RGB':
-                                self.icon_image = self.icon_image.convert('RGB')
+                            
+                            # Handle different image modes for better transparency
+                            if icon_name.endswith('.ico'):
+                                # ICO files often have transparency - preserve it
+                                if self.icon_image.mode in ['RGBA', 'LA', 'P']:
+                                    # Keep transparency for ICO files
+                                    pass
+                                elif self.icon_image.mode != 'RGB':
+                                    # Convert other modes to RGB
+                                    self.icon_image = self.icon_image.convert('RGB')
+                            else:
+                                # PNG files - preserve transparency if present
+                                if self.icon_image.mode in ['RGBA', 'LA']:
+                                    # Keep transparency for PNG files
+                                    pass
+                                elif self.icon_image.mode != 'RGB':
+                                    # Convert other modes to RGB
+                                    self.icon_image = self.icon_image.convert('RGB')
+                            
                             # Resize to appropriate size for system tray
                             self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
-                            self.log_message(f"✅ Using bundled {icon_name} for system tray icon")
+                            self.log_message(f"✅ Using bundled {icon_name} for system tray icon (mode: {self.icon_image.mode})")
                             icon_found = True
                             break
                         except Exception as e:
@@ -862,22 +968,22 @@ class RustControllerGUI:
                 
                 if not icon_found:
                     # For single-file executables, we can't access bundled files directly
-                    # Create a simple camera-like icon programmatically
+                    # Create a simple camera-like icon programmatically with transparency
                     try:
-                        # Create a simple camera icon (black camera shape on white background)
-                        self.icon_image = Image.new('RGB', (64, 64), color='white')
+                        # Create a simple camera icon with transparency
+                        self.icon_image = Image.new('RGBA', (64, 64), color=(0, 0, 0, 0))  # Transparent background
                         from PIL import ImageDraw
                         draw = ImageDraw.Draw(self.icon_image)
                         
                         # Draw a simple camera shape
                         # Camera body (rectangle)
-                        draw.rectangle([12, 20, 52, 44], fill='black', outline='black')
+                        draw.rectangle([12, 20, 52, 44], fill=(0, 0, 0, 255), outline=(0, 0, 0, 255))
                         # Camera lens (circle)
-                        draw.ellipse([24, 26, 40, 38], fill='white', outline='black')
+                        draw.ellipse([24, 26, 40, 38], fill=(255, 255, 255, 255), outline=(0, 0, 0, 255))
                         # Camera flash (small rectangle)
-                        draw.rectangle([20, 16, 28, 20], fill='black', outline='black')
+                        draw.rectangle([20, 16, 28, 20], fill=(0, 0, 0, 255), outline=(0, 0, 0, 255))
                         
-                        self.log_message("✅ Created programmatic camera icon for system tray")
+                        self.log_message("✅ Created programmatic camera icon with transparency for system tray")
                         icon_found = True
                     except Exception as e:
                         self.log_message(f"⚠️ Error creating programmatic icon: {e}")
@@ -886,22 +992,28 @@ class RustControllerGUI:
                         self.log_message("⚠️ Using fallback blue square")
             else:
                 # Running as script - try to load icon files from current directory
-                if os.path.exists("camera.ico"):
-                    self.icon_image = Image.open("camera.ico")
-                    # Convert to RGB for system tray compatibility
-                    if self.icon_image.mode != 'RGB':
-                        self.icon_image = self.icon_image.convert('RGB')
-                    # Resize to appropriate size for system tray
-                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
-                    self.log_message("✅ Using camera.ico for system tray icon")
-                elif os.path.exists("rust_controller.ico"):
+                if os.path.exists("rust_controller.ico"):
                     self.icon_image = Image.open("rust_controller.ico")
-                    # Convert to RGB for system tray compatibility
-                    if self.icon_image.mode != 'RGB':
+                    # Preserve transparency for ICO files
+                    if self.icon_image.mode in ['RGBA', 'LA', 'P']:
+                        # Keep transparency
+                        pass
+                    elif self.icon_image.mode != 'RGB':
                         self.icon_image = self.icon_image.convert('RGB')
                     # Resize to appropriate size for system tray
                     self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
-                    self.log_message("✅ Using rust_controller.ico for system tray icon")
+                    self.log_message(f"✅ Using rust_controller.ico for system tray icon (mode: {self.icon_image.mode})")
+                elif os.path.exists("camera.ico"):
+                    self.icon_image = Image.open("camera.ico")
+                    # Preserve transparency for ICO files
+                    if self.icon_image.mode in ['RGBA', 'LA', 'P']:
+                        # Keep transparency
+                        pass
+                    elif self.icon_image.mode != 'RGB':
+                        self.icon_image = self.icon_image.convert('RGB')
+                    # Resize to appropriate size for system tray
+                    self.icon_image = self.icon_image.resize((64, 64), Image.Resampling.LANCZOS)
+                    self.log_message(f"✅ Using camera.ico for system tray icon (mode: {self.icon_image.mode})")
                 else:
                     # Create a simple colored square as fallback
                     self.icon_image = Image.new('RGB', (64, 64), color='blue')
@@ -921,6 +1033,9 @@ class RustControllerGUI:
             pystray.Menu.SEPARATOR,
             item('Exit', self.quit_app)
         )
+        
+        # Optimize icon for system tray use
+        self.optimize_icon_for_system_tray()
         
         # Create system tray icon
         self.tray_icon = pystray.Icon("camera_controller", self.icon_image, 
@@ -1788,7 +1903,7 @@ class RustControllerGUI:
                            "• Inventory management\n"
                            "• Crafting automation\n"
                            "• Game controls\n"
-                           "• Steam integration\n\n"
+                           "• API-based database management\n\n"
                            "Keyboard Shortcuts:\n"
                            "• Ctrl+Q: Exit application\n"
                            "• Alt+M: Minimize to tray")
@@ -1804,69 +1919,94 @@ class RustControllerGUI:
         # Force exit the process
         os._exit(0)
     
-    def check_steam_login_status(self):
-        """Check Steam login status"""
+    def check_api_connection_status(self):
+        """Check API connection status and automatically check for updates"""
         try:
-            login_status = steam_manager.check_steam_login()
-            
-            if login_status["loggedIn"]:
-                self.steam_status_var.set(f"Steam: Logged in as {login_status['username']}")
-                self.steam_username_var.set(login_status["username"])
+            # Test API connection
+            response = requests.get("http://localhost:5000/steam/test-installation", timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    self.database_status_var.set("API: Connected to Rust API - Checking for updates...")
+                    # Automatically check for database updates on startup
+                    self.check_database_updates_on_startup()
+                else:
+                    self.database_status_var.set("API: Connection failed")
             else:
-                self.steam_status_var.set(f"Steam: {login_status['message']}")
-            
+                self.database_status_var.set("API: Connection error")
+                
         except Exception as e:
-            self.steam_status_var.set(f"Steam: Error checking status - {str(e)}")
+            self.database_status_var.set(f"API: Error checking connection - {str(e)}")
     
-    def steam_login(self):
-        """Handle Steam login"""
-        username = self.steam_username_var.get().strip()
-        password = self.steam_password_var.get().strip()
-        twofa_code = self.steam_2fa_var.get().strip()
-        
-        if not username or not password:
-            messagebox.showerror("Error", "Please enter both username and password")
-            return
-        
-        # Disable login button during login
-        self.steam_login_button.config(state="disabled")
-        self.steam_status_var.set("Steam: Logging in...")
-        
-        # Run login in separate thread
-        def login_thread():
-            try:
-                result = steam_manager.steam_login(username, password, twofa_code if twofa_code else None)
+    def check_database_updates_on_startup(self):
+        """Check if database needs updating on startup"""
+        try:
+            # Check if database exists and when it was last updated
+            database_path = os.path.expanduser("~/Documents/Rust-Actions/itemDatabase.json")
+            if os.path.exists(database_path):
+                # Get file modification time
+                file_time = os.path.getmtime(database_path)
+                file_age_hours = (time.time() - file_time) / 3600
                 
-                # Update UI in main thread
-                self.root.after(0, lambda: self.handle_login_result(result))
+                # If database is older than 24 hours, suggest update
+                if file_age_hours > 24:
+                    self.database_status_var.set("API: Connected - Database may be outdated (>24h old)")
+                    # Show a non-blocking message about potential updates
+                    self.root.after(3000, lambda: self.show_startup_update_suggestion())
+                else:
+                    self.database_status_var.set("API: Connected to Rust API - Database up to date")
+            else:
+                # No database exists, suggest initial download
+                self.database_status_var.set("API: Connected - No database found, click 'Update Item Database'")
+                self.root.after(2000, lambda: self.show_startup_update_suggestion())
                 
-            except Exception as e:
-                self.root.after(0, lambda: self.handle_login_result({
-                    "success": False,
-                    "loggedIn": False,
-                    "message": f"Login error: {str(e)}"
-                }))
-        
-        threading.Thread(target=login_thread, daemon=True).start()
+        except Exception as e:
+            self.database_status_var.set(f"API: Connected - Error checking database: {str(e)}")
     
-    def handle_login_result(self, result):
-        """Handle Steam login result"""
-        self.steam_login_button.config(state="normal")
-        
-        if result["success"] and result["loggedIn"]:
-            self.steam_status_var.set(f"Steam: Logged in as {result['username']}")
-            self.steam_password_var.set("")  # Clear password
-            messagebox.showinfo("Success", f"Steam login successful for {result['username']}")
-        else:
-            self.steam_status_var.set(f"Steam: Login failed - {result['message']}")
-            messagebox.showerror("Login Failed", result["message"])
+    def show_startup_update_suggestion(self):
+        """Show a suggestion to update the database"""
+        try:
+            # Check if we should show the suggestion (don't spam the user)
+            if not hasattr(self, '_startup_suggestion_shown'):
+                self._startup_suggestion_shown = True
+                
+                # Show a non-blocking info message
+                messagebox.showinfo(
+                    "Database Update Available", 
+                    "Your item database may be outdated. Click 'Update Item Database' to get the latest items and crafting recipes from the Rust API."
+                )
+        except Exception as e:
+            # Silently fail if there's an error showing the suggestion
+            pass
+    
+    def test_api_connection(self):
+        """Test API connection"""
+        try:
+            response = requests.get("http://localhost:5000/steam/test-installation", timeout=10)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    self.database_status_var.set("API: Connected to Rust API")
+                    messagebox.showinfo("Success", "API connection successful!")
+                else:
+                    self.database_status_var.set("API: Connection failed")
+                    messagebox.showerror("Connection Failed", "API connection failed")
+            else:
+                self.database_status_var.set("API: Connection error")
+                messagebox.showerror("Connection Failed", f"API connection error: HTTP {response.status_code}")
+                
+        except Exception as e:
+            self.database_status_var.set(f"API: Error checking connection - {str(e)}")
+            messagebox.showerror("Connection Failed", f"Connection error: {str(e)}")
+    
+
     
     def update_item_database(self):
-        """Update the item database using Steam"""
+        """Update the item database using API"""
         # Disable update button during update
         self.update_database_button.config(state="disabled")
         self.progress_var.set(0)
-        self.progress_label_var.set("Starting database update...")
+        self.progress_label_var.set("Starting database update from API...")
         
         def progress_callback(progress, message):
             """Callback for progress updates"""
@@ -1874,7 +2014,7 @@ class RustControllerGUI:
         
         def update_thread():
             try:
-                result = steam_manager.update_item_database(progress_callback=progress_callback)
+                result = api_data_manager.update_item_database(progress_callback=progress_callback)
                 
                 # Update UI in main thread
                 self.root.after(0, lambda: self.handle_update_result(result))
@@ -1905,77 +2045,8 @@ class RustControllerGUI:
             # Automatically refresh the crafting dropdowns with new data
             self.refresh_item_dropdowns()
         else:
-            if result.get("requireSteamLogin"):
-                self.progress_label_var.set("Steam login required")
-                messagebox.showwarning("Steam Login Required", 
-                                     "Please log in to Steam first before updating the database.")
-            else:
-                self.progress_label_var.set(f"Update failed: {result['message']}")
-                messagebox.showerror("Update Failed", result["message"])
-    
-    def process_assets_only(self):
-        """Process Rust assets only (without downloading files)"""
-        # Disable process button during operation
-        self.process_assets_button.config(state="disabled")
-        self.progress_var.set(0)
-        self.progress_label_var.set("Processing Rust assets...")
-        
-        def progress_callback(progress, message):
-            """Callback for progress updates"""
-            self.root.after(0, lambda: self.update_progress(progress, message))
-        
-        def process_thread():
-            try:
-                # Process Rust assets only (skip download)
-                result = steam_manager.process_rust_assets(progress_callback=progress_callback)
-                
-                if result.get("success"):
-                    # Extract crafting data from Unity bundles
-                    progress_callback(70, "Extracting crafting data from Unity bundles...")
-                    
-                    # Find the items.preload.bundle file
-                    bundle_path = steam_manager.steamcmd_dir / "steamapps" / "common" / "Rust" / "Bundles" / "shared" / "items.preload.bundle"
-                    
-                    if bundle_path.exists():
-                        crafting_result = steam_manager.extract_crafting_data_from_bundles(bundle_path, progress_callback)
-                        if crafting_result.get("success"):
-                            result["recipeCount"] = crafting_result.get("recipe_count", 0)
-                            result["message"] = f"Database updated with {result.get('itemCount', 0)} items and {result.get('recipeCount', 0)} crafting recipes"
-                        else:
-                            result["recipeCount"] = 0
-                            result["message"] = f"Database updated with {result.get('itemCount', 0)} items (crafting extraction failed: {crafting_result.get('error', 'Unknown error')})"
-                    else:
-                        result["recipeCount"] = 0
-                        result["message"] = f"Database updated with {result.get('itemCount', 0)} items (bundle file not found)"
-                
-                # Update UI in main thread
-                self.root.after(0, lambda: self.handle_process_assets_result(result))
-                
-            except Exception as e:
-                self.root.after(0, lambda: self.handle_process_assets_result({
-                    "success": False,
-                    "message": f"Process error: {str(e)}"
-                }))
-        
-        threading.Thread(target=process_thread, daemon=True).start()
-    
-    def handle_process_assets_result(self, result):
-        """Handle process assets result"""
-        self.process_assets_button.config(state="normal")
-        
-        if result.get("success", False):
-            item_count = result.get("itemCount", 0)
-            self.progress_label_var.set(f"Assets processed: {item_count} items")
-            messagebox.showinfo("Success", f"Rust assets processed successfully!\n{item_count} items processed and database updated.")
-            # Refresh database stats
-            stats_data = self._fetch_database_stats()
-            self._update_db_stats_display(stats_data)
-            # Automatically refresh the crafting dropdowns with new data
-            self.refresh_item_dropdowns()
-        else:
-            error_msg = result.get("message", "Unknown error")
-            self.progress_label_var.set(f"Process failed: {error_msg}")
-            messagebox.showerror("Process Failed", f"Failed to process Rust assets:\n{error_msg}")
+            self.progress_label_var.set(f"Update failed: {result['message']}")
+            messagebox.showerror("Update Failed", result["message"])
     
     def regenerate_rust_actions_binds(self):
         """Regenerate all rust-actions binds in keys.cfg"""
@@ -2040,8 +2111,8 @@ class RustControllerGUI:
     
     def run(self):
         """Start the GUI application"""
-        # Check Steam login status on startup
-        self.check_steam_login_status()
+        # Check API connection status on startup
+        self.check_api_connection_status()
         self.root.mainloop()
 
     def toggle_api_panel(self):
@@ -2157,6 +2228,23 @@ class RustControllerGUI:
             
         except Exception as e:
             self.log_message(f"Failed to update startup command: {e}")
+
+    def check_api_connection_status(self):
+        """Check API connection status"""
+        try:
+            # Test API connection instead of Steam login
+            response = requests.get("http://localhost:5000/steam/test-installation", timeout=5)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    self.database_status_var.set("API: Connected to Rust API")
+                else:
+                    self.database_status_var.set("API: Connection failed")
+            else:
+                self.database_status_var.set("API: Connection error")
+                
+        except Exception as e:
+            self.database_status_var.set(f"API: Error checking connection - {str(e)}")
 
 def main():
     """Main entry point"""

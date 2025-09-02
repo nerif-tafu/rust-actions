@@ -5,7 +5,12 @@ a = Analysis(
     ['gui.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        ('camera.ico', '.'),
+        ('rust_controller.ico', '.'),
+        ('camera.png', '.'),
+        ('rust_controller.png', '.'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,5 +40,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['camera.png'],
+    icon='rust_controller.ico',
 )
